@@ -1,0 +1,60 @@
+# ─────────────────────────────────────────────────────────────
+# Render Blueprint — deploys the FastAPI backend and the Next.js
+# frontend as two Docker web services.
+# Render injects each service's env vars as Docker build args, so the
+# frontend's NEXT_PUBLIC_* values are baked into the client bundle.
+# Docs: https://render.com/docs/blueprint-spec
+# ─────────────────────────────────────────────────────────────
+services:
+  # ── Backend API ──────────────────────────────────────────────
+  - type: web
+    name: aio-backend
+    runtime: image
+    env: docker
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    plan: standard
+    healthCheckPath: /api/health
+    autoDeploy: true
+    disk:
+      name: storage
+      mountPath: /app/storage
+      sizeGB: 5
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: CORS_ORIGINS
+        value: https://aio-frontend.onrender.com
+      - key: MAX_UPLOAD_MB
+        value: "100"
+      - key: FILE_RETENTION_MINUTES
+        value: "60"
+      - key: RATE_LIMIT_PER_MINUTE
+        value: "60"
+      - key: STORAGE_DIR
+        value: /app/storage
+      - key: APP_SECRET_KEY
+        generateValue: true
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+
+  # ── Frontend (Next.js) ───────────────────────────────────────
+  - type: web
+    name: aio-frontend
+    runtime: image
+    env: docker
+    rootDir: frontend
+    dockerfilePath: ./Dockerfile
+    plan: standard
+    autoDeploy: true
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        value: https://aio-backend.onrender.com
+      - key: NEXT_PUBLIC_SITE_URL
+        value: https://aio-frontend.onrender.com
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false

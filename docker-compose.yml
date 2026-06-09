@@ -1,0 +1,48 @@
+# ─────────────────────────────────────────────────────────────
+# All in one convertor — local full-stack stack
+#   frontend (Next.js)  ->  http://localhost:3000
+#   backend  (FastAPI)  ->  http://localhost:8000
+#
+# Usage:
+#   1. cp backend/.env.example backend/.env   (edit as needed)
+#   2. cp .env.example .env                   (set NEXT_PUBLIC_SUPABASE_* )
+#   3. docker compose up --build
+# ─────────────────────────────────────────────────────────────
+name: all-in-one-convertor
+
+services:
+  backend:
+    build:
+      context: ./backend
+    container_name: aio-backend
+    env_file:
+      - path: ./backend/.env
+        required: false
+    environment:
+      CORS_ORIGINS: "http://localhost:3000"
+      STORAGE_DIR: "/app/storage"
+    ports:
+      - "8000:8000"
+    volumes:
+      - backend_storage:/app/storage
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: "http://localhost:8000"
+        NEXT_PUBLIC_SUPABASE_URL: "${NEXT_PUBLIC_SUPABASE_URL:-}"
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: "${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}"
+        NEXT_PUBLIC_SITE_URL: "http://localhost:3000"
+    container_name: aio-frontend
+    environment:
+      NEXT_PUBLIC_API_URL: "http://localhost:8000"
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  backend_storage:

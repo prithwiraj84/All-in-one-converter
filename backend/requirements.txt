@@ -1,0 +1,31 @@
+# ── Web framework ──────────────────────────────────────────────
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+python-multipart==0.0.20
+pydantic==2.10.4
+pydantic-settings==2.7.1
+
+# ── PDF processing ─────────────────────────────────────────────
+pypdf==5.1.0
+PyMuPDF==1.25.1
+pdfplumber==0.11.5
+
+# ── Office documents (also requires LibreOffice system binary) ──
+openpyxl==3.1.5
+
+# ── Images ─────────────────────────────────────────────────────
+Pillow==11.1.0
+
+# ── OCR (also requires the Tesseract system binary) ────────────
+pytesseract==0.3.13
+
+# ── Fonts ──────────────────────────────────────────────────────
+fonttools==4.55.3
+brotli==1.1.0
+
+# ── Misc / integrations ────────────────────────────────────────
+httpx==0.28.1
+python-dotenv==1.0.1
+
+# Audio/video conversion uses the FFmpeg system binary via subprocess.
+# Archive handling (zip/tar/gzip) uses the Python standard library.
