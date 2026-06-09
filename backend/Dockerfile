@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────
-# All in one convertor — FastAPI backend
+# All in one converter — FastAPI backend
 # Includes the system binaries the services shell out to:
 # ffmpeg (audio/video), tesseract (OCR), libreoffice (documents).
 # ─────────────────────────────────────────────────────────────

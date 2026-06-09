@@ -1,4 +1,4 @@
-# Deployment Guide — All in one convertor
+# Deployment Guide — All in one converter
 
 This guide covers Supabase setup, environment variables, and deploying to **Render**
 (blueprint included) or any Docker host.

@@ -1,15 +1,15 @@
 import type { FaqItem, PricingTier, StatItem } from "./types";
 
 export const SITE = {
-  name: "All in one convertor",
-  shortName: "AIO Convertor",
+  name: "All in one converter",
+  shortName: "AIO Converter",
   tagline: "All Your File Tools. One Powerful Platform.",
   description:
     "Convert, compress, edit, protect and optimize PDFs, images, videos, audio and documents using one intelligent platform. 100+ free file tools.",
   url: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
   ogImage: "/og.png",
-  twitter: "@aioconvertor",
-  email: "support@aioconvertor.app",
+  twitter: "@aioconverter",
+  email: "support@aioconverter.app",
 } as const;
 
 export const NAV_LINKS = [
@@ -121,7 +121,7 @@ export const PRICING_TIERS: PricingTier[] = [
 
 export const FAQS: FaqItem[] = [
   {
-    question: "Is All in one convertor really free?",
+    question: "Is All in one converter really free?",
     answer:
       "Yes. Every one of our 100+ tools is free to use with generous daily limits. Pro and Business plans unlock larger files, unlimited tasks, batch processing and an API.",
   },

@@ -1,5 +1,5 @@
 -- ============================================================================
--- All in one convertor — Supabase / PostgreSQL schema
+-- All in one converter — Supabase / PostgreSQL schema
 -- Run in the Supabase SQL editor (or via `supabase db push`).
 -- Includes tables, row-level security, and a trigger that provisions a
 -- profile row whenever a new auth user signs up.

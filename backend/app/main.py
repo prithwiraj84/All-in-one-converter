@@ -1,4 +1,4 @@
-"""All in one convertor — FastAPI application entrypoint."""
+"""All in one converter — FastAPI application entrypoint."""
 from __future__ import annotations
 
 import asyncio
@@ -24,7 +24,7 @@ async def lifespan(_: FastAPI):
     # Startup: purge anything stale, then run periodic cleanup.
     cleanup_expired()
     task = asyncio.create_task(retention_loop())
-    logger.info("All in one convertor API v%s started (env=%s)", __version__, settings.environment)
+    logger.info("All in one converter API v%s started (env=%s)", __version__, settings.environment)
     try:
         yield
     finally:
@@ -36,7 +36,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(
-    title="All in one convertor API",
+    title="All in one converter API",
     description="File processing API: PDF, document, image, OCR, archive, audio, video, font and AI tools.",
     version=__version__,
     lifespan=lifespan,
@@ -65,7 +65,7 @@ for router in all_routers:
 @app.get("/", tags=["health"])
 def root() -> dict:
     return {
-        "name": "All in one convertor API",
+        "name": "All in one converter API",
         "version": __version__,
         "docs": "/docs",
         "health": "/api/health",

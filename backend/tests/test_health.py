@@ -8,7 +8,7 @@ client = TestClient(app)
 def test_root():
     res = client.get("/")
     assert res.status_code == 200
-    assert res.json()["name"] == "All in one convertor API"
+    assert res.json()["name"] == "All in one converter API"
 
 
 def test_health():

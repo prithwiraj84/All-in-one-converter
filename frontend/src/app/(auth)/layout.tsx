@@ -53,7 +53,7 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
               ))}
             </ul>
           </div>
-          <p className="text-sm text-white/60">© {new Date().getFullYear()} All in one convertor</p>
+          <p className="text-sm text-white/60">© {new Date().getFullYear()} All in one converter</p>
         </div>
       </div>
     </div>

@@ -3,7 +3,7 @@
 @tailwind utilities;
 
 /* ─────────────────────────────────────────────────────────────
-   All in one convertor — Bright Professional theme tokens
+   All in one converter — Bright Professional theme tokens
    Brand: #2563EB primary · #7C3AED secondary · #06B6D4 accent
    Tokens are HSL channels so Tailwind can apply opacity modifiers.
    ───────────────────────────────────────────────────────────── */
@@ -82,6 +82,8 @@
   html {
     scroll-behavior: smooth;
     -webkit-text-size-adjust: 100%;
+    /* Pin to light so browsers/OS "auto dark mode" never force-darkens the UI. */
+    color-scheme: light;
   }
   body {
     @apply bg-background text-foreground antialiased;

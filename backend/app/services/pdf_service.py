@@ -177,14 +177,18 @@ def watermark(job_id: str, src: Path, out_dir: Path, *, text: str = "CONFIDENTIA
     doc = fitz.open(str(src))
     for page in doc:
         rect = page.rect
+        # PyMuPDF's `rotate` only accepts multiples of 90, so we apply a 45°
+        # diagonal via a morph matrix pivoting on the page centre instead.
+        pivot = fitz.Point(rect.width / 2, rect.height / 2)
+        morph = (pivot, fitz.Matrix(1, 1).prerotate(45))
         page.insert_textbox(
             rect,
             text,
             fontsize=48,
-            rotate=45,
             color=(0.5, 0.5, 0.5),
             fill_opacity=alpha,
             align=fitz.TEXT_ALIGN_CENTER,
+            morph=morph,
         )
     out = out_dir / f"{stem(src.name)}-watermarked.pdf"
     doc.save(str(out))

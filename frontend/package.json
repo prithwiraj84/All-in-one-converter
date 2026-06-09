@@ -1,8 +1,8 @@
 {
-  "name": "all-in-one-convertor-frontend",
+  "name": "all-in-one-converter-frontend",
   "version": "1.0.0",
   "private": true,
-  "description": "All in one convertor — premium file-tools SaaS frontend (Next.js 15)",
+  "description": "All in one converter — premium file-tools SaaS frontend (Next.js 15)",
   "scripts": {
     "dev": "next dev",
     "build": "next build",

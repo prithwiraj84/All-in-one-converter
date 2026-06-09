@@ -1,7 +1,7 @@
 import type { Config } from "tailwindcss";
 
 /**
- * All in one convertor — Bright Professional design system.
+ * All in one converter — Bright Professional design system.
  * Brand: #2563EB (primary), #7C3AED (secondary), #06B6D4 (accent).
  * Colors are wired through CSS variables (see globals.css) so shadcn/ui
  * primitives, dark mode, and ad-hoc utilities all stay in sync.

@@ -1,5 +1,5 @@
 # ─────────────────────────────────────────────────────────────
-# All in one convertor — local full-stack stack
+# All in one converter — local full-stack stack
 #   frontend (Next.js)  ->  http://localhost:3000
 #   backend  (FastAPI)  ->  http://localhost:8000
 #
@@ -8,7 +8,7 @@
 #   2. cp .env.example .env                   (set NEXT_PUBLIC_SUPABASE_* )
 #   3. docker compose up --build
 # ─────────────────────────────────────────────────────────────
-name: all-in-one-convertor
+name: all-in-one-converter
 
 services:
   backend:

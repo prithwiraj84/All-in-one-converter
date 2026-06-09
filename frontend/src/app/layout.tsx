@@ -67,9 +67,14 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${jetbrains.variable}`} suppressHydrationWarning>
+    <html
+      lang="en"
+      className={`light ${inter.variable} ${jetbrains.variable}`}
+      style={{ colorScheme: "light" }}
+      suppressHydrationWarning
+    >
       <body className="min-h-screen bg-background font-sans antialiased">
-        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
+        <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} forcedTheme="light">
           <QueryProvider>
             {children}
             <Toaster />
