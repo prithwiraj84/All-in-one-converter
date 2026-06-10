@@ -44,17 +44,21 @@ app = FastAPI(
     redoc_url="/redoc",
 )
 
-# ── Middleware (executes bottom-up) ────────────────────────────────
+# ── Middleware ─────────────────────────────────────────────────────
+# Added last = outermost. CORS must wrap everything so that *every* response
+# (including rate-limit 429s and error responses) carries CORS headers, and so
+# the preflight short-circuit runs before the rate limiter counts the OPTIONS.
+app.add_middleware(SecurityHeadersMiddleware)
+app.add_middleware(RateLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
+    allow_origin_regex=settings.cors_origin_regex,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["Content-Disposition"],
 )
-app.add_middleware(RateLimitMiddleware)
-app.add_middleware(SecurityHeadersMiddleware)
 
 register_exception_handlers(app)
 

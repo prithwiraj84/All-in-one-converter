@@ -468,4 +468,8 @@ Released under the **MIT License** — build something great. ✨
 
 <img src="https://capsule-render.vercel.app/api?type=waving&color=0:06B6D4,50:2563EB,100:7C3AED&height=120&section=footer&reversed=true" alt="footer" width="100%" />
 
+<<<<<<< HEAD
 </div>
+=======
+</div>
+>>>>>>> a0ad507af40986eebbe2b3c94f0e8f6759ff7c92

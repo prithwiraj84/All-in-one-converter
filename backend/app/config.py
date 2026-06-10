@@ -41,6 +41,19 @@ class Settings(BaseSettings):
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
 
     @property
+    def cors_origin_regex(self) -> str | None:
+        """In development, allow any localhost / 127.0.0.1 port.
+
+        The Next.js dev server binds a different port (3001, 3002, …) when 3000
+        is already taken; without this, its preflight is rejected with a 400 and
+        the browser reports a generic "Network error". Disabled outside
+        development so production only honours the explicit allowlist.
+        """
+        if self.environment.lower() == "development":
+            return r"https?://(localhost|127\.0\.0\.1)(:\d+)?"
+        return None
+
+    @property
     def max_upload_bytes(self) -> int:
         return self.max_upload_mb * 1024 * 1024
 
