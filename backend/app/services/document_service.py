@@ -1,7 +1,10 @@
 """Office document conversions.
 
-Office<->PDF conversions use LibreOffice (the `soffice` binary) in headless
-mode. PDF->Excel uses pdfplumber + openpyxl for table extraction.
+Office->PDF conversions (Word/Excel/PowerPoint -> PDF) use LibreOffice (the
+`soffice` binary) in headless mode. PDF->Word uses pdf2docx and PDF->Excel
+uses pdfplumber + openpyxl — LibreOffice imports PDFs as *Draw* documents that
+cannot be re-exported through the Writer/Calc filters, so dedicated PDF
+parsers are required for the PDF->Office direction.
 """
 from __future__ import annotations
 
@@ -49,7 +52,26 @@ def _libreoffice_convert(src: Path, out_dir: Path, target_format: str, target_ex
 
 
 def pdf_to_word(job_id: str, src: Path, out_dir: Path) -> JobResult:
-    out = _libreoffice_convert(src, out_dir, "docx:MS Word 2007 XML", ".docx")
+    """Convert a PDF into an editable Word (.docx) document.
+
+    Uses pdf2docx (PyMuPDF-based) instead of LibreOffice: a PDF opens in
+    LibreOffice as a Draw document, which the Writer .docx filter cannot
+    save, so a dedicated PDF->DOCX engine is required. Imported lazily so the
+    heavy opencv/numpy dependency chain stays out of app startup.
+    """
+    from pdf2docx import Converter
+
+    out = out_dir / f"{stem(src.name)}.docx"
+    converter = Converter(str(src))
+    try:
+        converter.convert(str(out))
+    except Exception as exc:  # noqa: BLE001
+        raise ProcessingError(
+            "The PDF could not be converted to Word. It may be encrypted, "
+            "image-only (scanned), or corrupted."
+        ) from exc
+    finally:
+        converter.close()
     return file_result(job_id, "pdf-to-word", out)
 
 
