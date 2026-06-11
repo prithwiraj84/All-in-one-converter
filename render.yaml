@@ -10,8 +10,9 @@ services:
   - type: web
     name: aio-backend
     runtime: docker
-    dockerfilePath: ./backend/Dockerfile
-    dockerContext: ./backend
+    rootDir: backend
+    dockerContext: backend
+    dockerfilePath: Dockerfile
     plan: standard
     healthCheckPath: /api/health
     autoDeploy: true
@@ -43,8 +44,9 @@ services:
   - type: web
     name: aio-frontend
     runtime: docker
-    dockerfilePath: ./frontend/Dockerfile
-    dockerContext: ./frontend
+    rootDir: frontend
+    dockerContext: frontend
+    dockerfilePath: Dockerfile
     plan: standard
     autoDeploy: true
     envVars:
