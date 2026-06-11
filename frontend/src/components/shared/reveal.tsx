@@ -24,6 +24,10 @@ const variantsMap: Record<string, Variants> = {
     hidden: { opacity: 0, scale: 0.94 },
     show: { opacity: 1, scale: 1 },
   },
+  pop: {
+    hidden: { opacity: 0, scale: 0.8, y: 28 },
+    show: { opacity: 1, scale: 1, y: 0 },
+  },
 };
 
 interface RevealProps {
@@ -32,6 +36,8 @@ interface RevealProps {
   delay?: number;
   className?: string;
   once?: boolean;
+  /** Use a springy, bouncy entrance instead of the smooth eased one. */
+  bouncy?: boolean;
 }
 
 /** Scroll-triggered reveal animation wrapper. */
@@ -41,6 +47,7 @@ export function Reveal({
   delay = 0,
   className,
   once = true,
+  bouncy = false,
 }: RevealProps) {
   return (
     <motion.div
@@ -48,7 +55,11 @@ export function Reveal({
       initial="hidden"
       whileInView="show"
       viewport={{ once, margin: "-80px" }}
-      transition={{ duration: 0.6, delay, ease: [0.22, 1, 0.36, 1] }}
+      transition={
+        bouncy
+          ? { type: "spring", stiffness: 260, damping: 16, delay }
+          : { duration: 0.6, delay, ease: [0.22, 1, 0.36, 1] }
+      }
       variants={variantsMap[direction]}
     >
       {children}

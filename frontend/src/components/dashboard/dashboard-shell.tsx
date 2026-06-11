@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   LayoutDashboard,
@@ -19,6 +19,7 @@ import {
 import { Logo } from "@/components/shared/logo";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { SignOutButton } from "./sign-out-button";
 import { cn } from "@/lib/utils";
 
 interface NavItem {
@@ -61,30 +62,25 @@ function getInitials(user: DashboardUser): string {
   return source.split("@")[0].slice(0, 2).toUpperCase();
 }
 
-/** Match an active nav item against the current pathname + search params. */
+/** Match an active nav item against the current pathname + ?tab= param. */
 function useIsActive() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const currentTab = searchParams.get("tab");
   return React.useCallback(
     (href: string) => {
       const [path, query] = href.split("?");
       if (path !== pathname) return false;
-      // Links without a query target the bare page (e.g. /dashboard, /tools).
-      if (!query) {
-        if (pathname === "/dashboard") {
-          // Highlight the plain Dashboard link only when no tab is selected.
-          if (typeof window !== "undefined") {
-            return !window.location.search.includes("tab=");
-          }
-        }
+      const tab = query ? new URLSearchParams(query).get("tab") : null;
+      // Links without a tab target the bare page (e.g. /dashboard, /tools).
+      if (!tab) {
+        // Highlight the plain Dashboard link only when no tab is selected.
+        if (pathname === "/dashboard") return !currentTab;
         return true;
       }
-      // Query-bearing links: match the tab param against the live URL.
-      if (typeof window === "undefined") return false;
-      const tab = new URLSearchParams(query).get("tab");
-      const current = new URLSearchParams(window.location.search).get("tab");
-      return tab === current;
+      return tab === currentTab;
     },
-    [pathname],
+    [pathname, currentTab],
   );
 }
 
@@ -163,8 +159,9 @@ function SidebarContent({
       <div className="mt-7 flex-1 overflow-y-auto">
         <NavList isActive={isActive} onNavigate={onNavigate} />
       </div>
-      <div className="mt-4">
+      <div className="mt-4 space-y-3">
         <UpgradeCard />
+        <SignOutButton variant="outline" className="w-full" />
       </div>
     </>
   );
@@ -234,8 +231,9 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
               <div className="mt-6 flex-1 overflow-y-auto">
                 <NavList isActive={isActive} onNavigate={() => setMobileOpen(false)} />
               </div>
-              <div className="mt-4">
+              <div className="mt-4 space-y-3">
                 <UpgradeCard />
+                <SignOutButton variant="outline" className="w-full" />
               </div>
             </motion.aside>
           </div>

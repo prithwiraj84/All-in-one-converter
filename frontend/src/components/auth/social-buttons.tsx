@@ -4,13 +4,15 @@ import { useState } from "react";
 import { Github, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { createClient } from "@/lib/supabase/client";
+import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 
 type OAuthProvider = "google" | "github";
 
 interface SocialButtonsProps {
   /** Optional path appended as a `next` query param to the OAuth callback. */
   redirectTo?: string;
+  /** Runs right before the browser hands off to the provider — e.g. to stash state. */
+  onBeforeRedirect?: () => void;
 }
 
 function GoogleGlyph({ className }: { className?: string }) {
@@ -36,12 +38,17 @@ function GoogleGlyph({ className }: { className?: string }) {
   );
 }
 
-export function SocialButtons({ redirectTo }: SocialButtonsProps) {
+export function SocialButtons({ redirectTo, onBeforeRedirect }: SocialButtonsProps) {
   const [loading, setLoading] = useState<OAuthProvider | null>(null);
 
   async function handleOAuth(provider: OAuthProvider) {
+    if (!isSupabaseConfigured()) {
+      toast.error("Login isn't configured yet. Add your Supabase keys and enable this provider.");
+      return;
+    }
     setLoading(provider);
     try {
+      onBeforeRedirect?.();
       const supabase = createClient();
       const callback = new URL("/auth/callback", window.location.origin);
       if (redirectTo) callback.searchParams.set("next", redirectTo);

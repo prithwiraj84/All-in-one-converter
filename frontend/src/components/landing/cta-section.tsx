@@ -32,7 +32,7 @@ export function CtaSection() {
             {/* Subtext */}
             <p className="mx-auto mt-5 max-w-xl text-lg text-white/85">
               Join 50,000+ people using one intelligent platform to convert, compress and protect
-              their PDFs, images, videos and more. No signup required to start.
+              their PDFs, images, videos and more. Free to try — sign in to download.
             </p>
 
             {/* Buttons */}

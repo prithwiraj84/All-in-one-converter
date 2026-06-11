@@ -61,8 +61,8 @@ export default async function ToolsIndexPage() {
           <Reveal delay={0.1}>
             <p className="mx-auto mt-5 max-w-2xl text-lg text-muted-foreground">
               Convert, compress, edit, protect and optimize PDFs, images, videos,
-              audio and documents — no signup, no watermarks, files deleted
-              automatically.
+              audio and documents — free to try, no watermarks, sign in to
+              download.
             </p>
           </Reveal>
 

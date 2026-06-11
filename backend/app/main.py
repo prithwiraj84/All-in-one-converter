@@ -5,15 +5,16 @@ import asyncio
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import __version__
 from app.config import settings
 from app.core.errors import register_exception_handlers
+from app.core.quota import enforce_quota
 from app.core.security import RateLimitMiddleware, SecurityHeadersMiddleware
 from app.core.storage import cleanup_expired, retention_loop
-from app.routers import all_routers
+from app.routers import all_routers, files as files_router, health as health_router
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("aio")
@@ -62,8 +63,12 @@ app.add_middleware(
 
 register_exception_handlers(app)
 
+# Health + the download route stay open; every processing router enforces
+# authentication + per-user quotas via the enforce_quota dependency.
+_OPEN_ROUTERS = {id(health_router.router), id(files_router.router)}
 for router in all_routers:
-    app.include_router(router)
+    deps = [] if id(router) in _OPEN_ROUTERS else [Depends(enforce_quota)]
+    app.include_router(router, dependencies=deps)
 
 
 @app.get("/", tags=["health"])

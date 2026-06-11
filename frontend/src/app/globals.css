@@ -104,6 +104,20 @@
     animation: gradient-shift 8s ease infinite;
   }
 
+  /* Playful animated rainbow gradient text */
+  .text-rainbow {
+    @apply bg-rainbow-gradient bg-clip-text text-transparent;
+    background-size: 200% 100%;
+    animation: rainbow-pan 6s linear infinite;
+  }
+
+  /* Soft multi-colour glow used behind playful CTAs / cards */
+  .glow-fun {
+    box-shadow:
+      0 10px 40px -12px rgb(124 58 237 / 0.45),
+      0 10px 40px -12px rgb(6 182 212 / 0.35);
+  }
+
   /* Frosted glass surface */
   .glass {
     @apply border border-white/40 bg-white/60 backdrop-blur-xl;

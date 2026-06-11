@@ -12,6 +12,12 @@ const PROTECTED_PREFIXES = ["/dashboard", "/account", "/files"];
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
+  // Without Supabase keys there is no session to refresh or guard — skip
+  // silently so the whole site doesn't 500 before auth is configured.
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    return supabaseResponse;
+  }
+
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,

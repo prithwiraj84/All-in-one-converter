@@ -12,6 +12,8 @@ export interface RunToolArgs {
   signal?: AbortSignal;
   /** Optional bearer token for authenticated requests. */
   token?: string;
+  /** Frontend tool slug, sent so the backend can record history accurately. */
+  toolSlug?: string;
 }
 
 /**
@@ -26,6 +28,7 @@ export function runTool({
   onProgress,
   signal,
   token,
+  toolSlug,
 }: RunToolArgs): Promise<JobResult> {
   return new Promise((resolve, reject) => {
     const url = `${API_BASE}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
@@ -38,6 +41,7 @@ export function runTool({
     const xhr = new XMLHttpRequest();
     xhr.open("POST", url, true);
     if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
+    if (toolSlug) xhr.setRequestHeader("X-Tool-Slug", toolSlug);
 
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable && onProgress) {

@@ -83,6 +83,11 @@ const config: Config = {
       backgroundImage: {
         "brand-gradient":
           "linear-gradient(120deg, hsl(var(--primary)) 0%, hsl(var(--secondary)) 50%, hsl(var(--accent)) 100%)",
+        // Vibrant multi-colour wash for the playful landing redesign.
+        "fun-gradient":
+          "linear-gradient(120deg, #ff5f6d 0%, #ffc371 22%, #f9c80e 40%, #06d6a0 60%, #2563eb 80%, #7c3aed 100%)",
+        "rainbow-gradient":
+          "linear-gradient(90deg, #ff5f6d, #ffc371, #f9c80e, #06d6a0, #06b6d4, #2563eb, #7c3aed, #ff5f6d)",
         "grid-pattern":
           "linear-gradient(to right, hsl(var(--border) / 0.6) 1px, transparent 1px), linear-gradient(to bottom, hsl(var(--border) / 0.6) 1px, transparent 1px)",
       },
@@ -114,6 +119,27 @@ const config: Config = {
           "0%, 100%": { opacity: "0.4" },
           "50%": { opacity: "0.8" },
         },
+        // ── Playful redesign keyframes ──────────────────────────
+        blob: {
+          "0%, 100%": { transform: "translate(0px, 0px) scale(1)", borderRadius: "42% 58% 63% 37% / 41% 44% 56% 59%" },
+          "33%": { transform: "translate(24px, -32px) scale(1.08)", borderRadius: "60% 40% 34% 66% / 56% 64% 36% 44%" },
+          "66%": { transform: "translate(-22px, 18px) scale(0.94)", borderRadius: "38% 62% 56% 44% / 62% 38% 62% 38%" },
+        },
+        wiggle: {
+          "0%, 100%": { transform: "rotate(-4deg)" },
+          "50%": { transform: "rotate(4deg)" },
+        },
+        "bounce-slow": {
+          "0%, 100%": { transform: "translateY(0)" },
+          "50%": { transform: "translateY(-12px)" },
+        },
+        "rainbow-pan": {
+          "0%": { backgroundPosition: "0% 50%" },
+          "100%": { backgroundPosition: "200% 50%" },
+        },
+        "spin-reverse": {
+          to: { transform: "rotate(-360deg)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -123,6 +149,11 @@ const config: Config = {
         "float-slow": "float-slow 9s ease-in-out infinite",
         shimmer: "shimmer 2s infinite",
         "pulse-glow": "pulse-glow 4s ease-in-out infinite",
+        blob: "blob 14s ease-in-out infinite",
+        wiggle: "wiggle 3s ease-in-out infinite",
+        "bounce-slow": "bounce-slow 4s ease-in-out infinite",
+        "rainbow-pan": "rainbow-pan 6s linear infinite",
+        "spin-reverse": "spin-reverse 2.4s linear infinite",
       },
     },
   },

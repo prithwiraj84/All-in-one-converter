@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   CheckCircle2,
@@ -14,22 +14,56 @@ import {
 import { toast } from "sonner";
 import { getTool } from "@/lib/tools-registry";
 import { useToolRunner } from "@/hooks/use-tool-runner";
-import { createClient } from "@/lib/supabase/client";
+import { useUser } from "@/hooks/use-user";
+import { usePlan } from "@/hooks/use-plan";
+import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
 import { downloadUrl, triggerDownload } from "@/lib/api";
+import {
+  clearPendingDownload,
+  getPendingDownload,
+  type PendingDownload,
+} from "@/lib/pending-download";
 import { formatBytes } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
+import { Loader } from "@/components/shared/loader";
 import { FileDropzone } from "./file-dropzone";
+import { DownloadGate } from "./download-gate";
 import { ToolOptionsForm, defaultOptionValues, type OptionValues } from "./tool-options-form";
-
-const MAX_MB = Number(process.env.NEXT_PUBLIC_MAX_UPLOAD_MB ?? 100);
 
 export function ToolWorkspace({ slug }: { slug: string }) {
   const tool = getTool(slug);
   const [files, setFiles] = useState<File[]>([]);
   const [options, setOptions] = useState<OptionValues>(() => defaultOptionValues(tool?.options));
   const { state, run, cancel, reset } = useToolRunner(tool);
+  const { user, loading: authLoading } = useUser();
+  const { limits, tasksToday, storageUsed, loggedIn, ready: planReady, bumpTasks } = usePlan();
+
+  // Per-file upload cap follows the user's plan (Free 10 MB · Pro 1 GB).
+  const maxMb = Math.round(limits.maxFileBytes / (1024 * 1024));
+
+  // Tools are free to try; downloading requires login. If keys aren't set up
+  // yet, don't gate (the provider buttons would just error) — treat as allowed.
+  const canDownload = !isSupabaseConfigured() || Boolean(user);
+
+  // After the OAuth round-trip the in-memory result is gone, so we restore the
+  // file the user was trying to download from sessionStorage.
+  const [restored, setRestored] = useState<PendingDownload | null>(null);
+  useEffect(() => {
+    if (!authLoading && user) {
+      const p = getPendingDownload(slug);
+      if (p) setRestored(p);
+    }
+  }, [authLoading, user, slug]);
+
+  function handleRestoredDownload() {
+    if (!restored) return;
+    triggerDownload(restored.url, restored.filename);
+    clearPendingDownload();
+    setRestored(null);
+    toast.success("Download started");
+  }
 
   if (!tool) return null;
 
@@ -46,6 +80,43 @@ export function ToolWorkspace({ slug }: { slug: string }) {
   }, [options, tool.options]);
 
   async function handleRun() {
+    // Wait for a signed-in user's plan/usage to load before enforcing limits,
+    // otherwise stale defaults (Free, 0 tasks) could let a quota be bypassed.
+    if (loggedIn && !planReady) {
+      toast.message("One moment — loading your plan…");
+      return;
+    }
+
+    // ── Quota: per-file size (by plan) ──────────────────────────────
+    const oversize = files.find((f) => f.size > limits.maxFileBytes);
+    if (oversize) {
+      toast.error(
+        `"${oversize.name}" is ${formatBytes(oversize.size)} — over the ${formatBytes(
+          limits.maxFileBytes,
+        )} per-file limit on the ${limits.label} plan.`,
+      );
+      return;
+    }
+
+    // ── Quota: daily task limit (tracked for signed-in users) ───────
+    if (loggedIn && Number.isFinite(limits.dailyTasks) && tasksToday >= limits.dailyTasks) {
+      toast.error(
+        `You've used all ${limits.dailyTasks} of today's tasks on the ${limits.label} plan. Upgrade to Pro for unlimited.`,
+      );
+      return;
+    }
+
+    // ── Quota: storage cap (approximate — measured on input size) ───
+    const incoming = files.reduce((s, f) => s + f.size, 0);
+    if (loggedIn && storageUsed + incoming > limits.storageBytes) {
+      toast.error(
+        `This would exceed your ${formatBytes(limits.storageBytes)} storage on the ${limits.label} plan (${formatBytes(
+          storageUsed,
+        )} already used). Files auto-delete after 60 min, or upgrade to Pro.`,
+      );
+      return;
+    }
+
     let token: string | undefined;
     try {
       const supabase = createClient();
@@ -54,7 +125,15 @@ export function ToolWorkspace({ slug }: { slug: string }) {
     } catch {
       /* anonymous usage is allowed */
     }
-    await run(files, mergedOptions, token);
+
+    const result = await run(files, mergedOptions, token);
+
+    // History + usage are recorded authoritatively by the backend (it counts
+    // the task and enforces the quota). Optimistically bump the local count so
+    // the UI reflects it immediately.
+    if (result && result.status !== "failed" && loggedIn) {
+      bumpTasks();
+    }
   }
 
   function handleReset() {
@@ -63,7 +142,28 @@ export function ToolWorkspace({ slug }: { slug: string }) {
   }
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-card">
+    <div className="space-y-4">
+      {/* Post-login restore: the file they tried to download before signing in */}
+      {restored && (state.stage === "idle" || state.stage === "error") && (
+        <div className="flex flex-col gap-3 rounded-2xl border-2 border-success/30 bg-success/5 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2.5">
+            <span className="grid h-9 w-9 place-items-center rounded-lg bg-success/15 text-success">
+              <CheckCircle2 className="h-5 w-5" />
+            </span>
+            <div>
+              <p className="text-sm font-bold leading-tight">Welcome back — your file is ready!</p>
+              <p className="text-xs text-muted-foreground">
+                {restored.filename ?? "Your processed file"}
+              </p>
+            </div>
+          </div>
+          <Button variant="gradient" onClick={handleRestoredDownload}>
+            <Download className="h-4 w-4" /> Download
+          </Button>
+        </div>
+      )}
+
+      <div className="overflow-hidden rounded-2xl border border-border bg-card shadow-card">
       {/* header */}
       <div className="flex items-center gap-3 border-b border-border bg-surface/60 px-6 py-4">
         <span className="grid h-10 w-10 place-items-center rounded-lg bg-brand-gradient text-white">
@@ -135,25 +235,47 @@ export function ToolWorkspace({ slug }: { slug: string }) {
               )}
 
               <div className="flex flex-col gap-2 sm:flex-row">
-                {tool.resultType === "file" && state.result.download_url && (
-                  <Button
-                    variant="gradient"
-                    size="lg"
-                    className="flex-1"
-                    onClick={() =>
-                      triggerDownload(
-                        downloadUrl(state.result!.download_url!),
-                        state.result!.output_filename,
-                      )
-                    }
-                  >
-                    <Download className="h-4 w-4" /> Download
-                  </Button>
-                )}
+                {tool.resultType === "file" &&
+                  state.result.download_url &&
+                  (authLoading ? (
+                    <Button variant="gradient" size="lg" className="flex-1" disabled>
+                      <Loader2 className="h-4 w-4 animate-spin" /> Preparing…
+                    </Button>
+                  ) : canDownload ? (
+                    <Button
+                      variant="gradient"
+                      size="lg"
+                      className="flex-1"
+                      onClick={() =>
+                        triggerDownload(
+                          downloadUrl(state.result!.download_url!),
+                          state.result!.output_filename,
+                        )
+                      }
+                    >
+                      <Download className="h-4 w-4" /> Download
+                    </Button>
+                  ) : null)}
                 <Button variant="outline" size="lg" className="flex-1" onClick={handleReset}>
                   <RotateCcw className="h-4 w-4" /> Convert another
                 </Button>
               </div>
+
+              {/* Free to try, sign in to download */}
+              {tool.resultType === "file" &&
+                state.result.download_url &&
+                !authLoading &&
+                !canDownload && (
+                  <DownloadGate
+                    pending={{
+                      slug,
+                      url: downloadUrl(state.result.download_url),
+                      filename: state.result.output_filename,
+                      createdAt: Date.now(),
+                    }}
+                    redirectTo={`/${slug}`}
+                  />
+                )}
             </motion.div>
           ) : busy ? (
             /* ── BUSY ───────────────────────────────────────── */
@@ -164,10 +286,7 @@ export function ToolWorkspace({ slug }: { slug: string }) {
               exit={{ opacity: 0 }}
               className="flex flex-col items-center gap-5 py-10 text-center"
             >
-              <span className="relative grid h-16 w-16 place-items-center">
-                <span className="absolute inset-0 animate-ping rounded-full bg-primary/20" />
-                <Loader2 className="h-10 w-10 animate-spin text-primary" />
-              </span>
+              <Loader size={64} />
               <div className="w-full max-w-sm space-y-2">
                 <p className="font-medium">
                   {state.stage === "uploading" ? "Uploading your files…" : "Processing…"}
@@ -197,7 +316,7 @@ export function ToolWorkspace({ slug }: { slug: string }) {
                 onChange={setFiles}
                 accept={tool.accept}
                 multiple={tool.multiple}
-                maxSizeMb={MAX_MB}
+                maxSizeMb={maxMb}
               />
 
               {tool.options && files.length > 0 && (
@@ -216,7 +335,7 @@ export function ToolWorkspace({ slug }: { slug: string }) {
                 size="xl"
                 className="w-full"
                 onClick={handleRun}
-                disabled={files.length === 0}
+                disabled={files.length === 0 || (loggedIn && !planReady)}
               >
                 <Sparkles className="h-4 w-4" />
                 {tool.actionLabel}
@@ -227,6 +346,7 @@ export function ToolWorkspace({ slug }: { slug: string }) {
             </motion.div>
           )}
         </AnimatePresence>
+      </div>
       </div>
     </div>
   );

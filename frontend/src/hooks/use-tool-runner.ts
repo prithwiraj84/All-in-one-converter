@@ -25,11 +25,15 @@ export function useToolRunner(tool: Tool | undefined) {
   const abortRef = useRef<AbortController | null>(null);
 
   const run = useCallback(
-    async (files: File[], options: Record<string, string | number | boolean>, token?: string) => {
-      if (!tool) return;
+    async (
+      files: File[],
+      options: Record<string, string | number | boolean>,
+      token?: string,
+    ): Promise<JobResult | null> => {
+      if (!tool) return null;
       if (files.length === 0) {
         setState({ ...INITIAL, stage: "error", error: "Please add at least one file." });
-        return;
+        return null;
       }
       const controller = new AbortController();
       abortRef.current = controller;
@@ -41,6 +45,7 @@ export function useToolRunner(tool: Tool | undefined) {
           files,
           options,
           token,
+          toolSlug: tool.slug,
           signal: controller.signal,
           onProgress: (percent) =>
             setState((s) => ({
@@ -55,12 +60,14 @@ export function useToolRunner(tool: Tool | undefined) {
         } else {
           setState({ stage: "done", progress: 100, result, error: null });
         }
+        return result;
       } catch (err) {
         if ((err as Error).name === "AbortError") {
           setState(INITIAL);
         } else {
           setState({ stage: "error", progress: 0, result: null, error: (err as Error).message });
         }
+        return null;
       }
     },
     [tool],
