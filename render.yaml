@@ -1,8 +1,6 @@
 # ─────────────────────────────────────────────────────────────
-# Render Blueprint — deploys the FastAPI backend and the Next.js
-# frontend as two Docker web services.
-# Render injects each service's env vars as Docker build args, so the
-# frontend's NEXT_PUBLIC_* values are baked into the client bundle.
+# Render Blueprint — deploys the FastAPI backend as a Docker web service.
+# The Next.js frontend is deployed separately on Vercel.
 # Docs: https://render.com/docs/blueprint-spec
 # ─────────────────────────────────────────────────────────────
 services:
@@ -23,10 +21,13 @@ services:
     envVars:
       - key: ENVIRONMENT
         value: production
+      # Your frontend origin(s), comma-separated (e.g. a custom domain).
+      # Every *.vercel.app deploy (production + previews) is ALSO allowed
+      # automatically by the app's CORS regex — see app/config.py.
       - key: CORS_ORIGINS
-        value: https://aio-frontend.onrender.com
+        value: https://your-app.vercel.app
       - key: MAX_UPLOAD_MB
-        value: "100"
+        value: "1024"
       - key: FILE_RETENTION_MINUTES
         value: "60"
       - key: RATE_LIMIT_PER_MINUTE
@@ -38,23 +39,4 @@ services:
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
-        sync: false
-
-  # ── Frontend (Next.js) ───────────────────────────────────────
-  - type: web
-    name: aio-frontend
-    runtime: docker
-    rootDir: frontend
-    dockerContext: frontend
-    dockerfilePath: Dockerfile
-    plan: standard
-    autoDeploy: true
-    envVars:
-      - key: NEXT_PUBLIC_API_URL
-        value: https://aio-backend.onrender.com
-      - key: NEXT_PUBLIC_SITE_URL
-        value: https://aio-frontend.onrender.com
-      - key: NEXT_PUBLIC_SUPABASE_URL
-        sync: false
-      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
         sync: false

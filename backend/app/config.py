@@ -42,16 +42,18 @@ class Settings(BaseSettings):
 
     @property
     def cors_origin_regex(self) -> str | None:
-        """In development, allow any localhost / 127.0.0.1 port.
+        """Extra allowed origins by pattern, complementing cors_origins_list.
 
-        The Next.js dev server binds a different port (3001, 3002, …) when 3000
-        is already taken; without this, its preflight is rejected with a 400 and
-        the browser reports a generic "Network error". Disabled outside
-        development so production only honours the explicit allowlist.
+        - Development: any localhost / 127.0.0.1 port (the Next.js dev server
+          hops to 3001/3002 when 3000 is taken; without this its preflight is
+          rejected and the browser shows a generic "Network error").
+        - Production: any Vercel deployment (*.vercel.app), so per-branch preview
+          URLs reach the API without re-listing CORS on every deploy. Tighten to
+          your project — e.g. r"https://my-app[\\w-]*\\.vercel\\.app" — to lock down.
         """
         if self.environment.lower() == "development":
             return r"https?://(localhost|127\.0\.0\.1)(:\d+)?"
-        return None
+        return r"https://([a-z0-9-]+\.)*vercel\.app"
 
     @property
     def max_upload_bytes(self) -> int:
