@@ -9,10 +9,9 @@ services:
   # ── Backend API ──────────────────────────────────────────────
   - type: web
     name: aio-backend
-    runtime: image
-    env: docker
-    rootDir: backend
-    dockerfilePath: ./Dockerfile
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
     plan: standard
     healthCheckPath: /api/health
     autoDeploy: true
@@ -43,10 +42,9 @@ services:
   # ── Frontend (Next.js) ───────────────────────────────────────
   - type: web
     name: aio-frontend
-    runtime: image
-    env: docker
-    rootDir: frontend
-    dockerfilePath: ./Dockerfile
+    runtime: docker
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
     plan: standard
     autoDeploy: true
     envVars:
