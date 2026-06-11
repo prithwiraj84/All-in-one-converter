@@ -1,7 +1,8 @@
 # Deployment Guide — All in one converter
 
-This guide covers Supabase setup, environment variables, and deploying to **Render**
-(blueprint included) or any Docker host.
+This guide covers Supabase setup, environment variables, and deploying the
+**backend to Hugging Face Spaces** + **frontend to Vercel** (recommended), with
+Render and plain Docker as alternatives.
 
 ---
 
@@ -38,6 +39,10 @@ https://<your-frontend-domain>/auth/callback
 
 ## 2. Environment variables
 
+> **In production:** frontend values go in the **Vercel** dashboard (Environment
+> Variables); backend values go in the **Hugging Face Space** (Settings → Variables
+> and secrets). The `.env` files below are for **local development** only.
+
 ### Frontend (`frontend/.env.local`)
 ```
 NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
@@ -62,27 +67,58 @@ SUPABASE_SERVICE_ROLE_KEY=eyJ...
 
 ---
 
-## 3. Deploy to Render (recommended)
+## 3. Deploy: Hugging Face Spaces (backend) + Vercel (frontend) — recommended
 
-The repo ships a [`render.yaml`](./render.yaml) blueprint that creates **two Docker web services**.
+The backend needs a real container (ffmpeg + tesseract + LibreOffice), so it goes
+on **Hugging Face Spaces** (free tier = 16 GB RAM, no credit card). The Next.js
+frontend goes on **Vercel**. Your single GitHub repo stays the source of truth.
 
-1. Push this repo to GitHub.
-2. In Render: **New → Blueprint**, select the repo. Render reads `render.yaml`.
-3. Fill in the `sync: false` secrets when prompted:
-   - Backend: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`
-   - Frontend: `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-4. After the first deploy, update the cross-references:
-   - Backend `CORS_ORIGINS` → the frontend's Render URL
-   - Frontend `NEXT_PUBLIC_API_URL` → the backend's Render URL
-   Then trigger a redeploy of the frontend (so the new API URL is baked in).
-5. Add both Render URLs (`/auth/callback`) to the Supabase redirect allow-list.
+### 3.1 Backend → Hugging Face Space (Docker)
+1. **Create the Space:** huggingface.co → **New Space → SDK: Docker**. Note the `<user>/<space>`.
+2. **Set env** in the Space → **Settings → Variables and secrets**:
+   - **Secrets** (encrypted): `SUPABASE_SERVICE_ROLE_KEY`, `APP_SECRET_KEY`
+   - **Variables**: `ENVIRONMENT=production`, `SUPABASE_URL=https://<ref>.supabase.co`,
+     `MAX_UPLOAD_MB=1024` (optional `CORS_ORIGINS=<custom-domain>` — `*.vercel.app` is already allowed)
+3. **Ship the code** (automated, single-repo):
+   - Create an HF **write** token (huggingface.co → Settings → Access Tokens).
+   - In GitHub: repo → **Settings → Secrets and variables → Actions** → add a secret `HF_TOKEN`.
+   - Edit [`.github/workflows/deploy-hf.yml`](./.github/workflows/deploy-hf.yml) → set `HF_USERNAME` and `HF_SPACE`.
+   - Push to `main` (or run the workflow manually). It pushes `backend/` to the Space, which builds (~10–20 min the first time).
+   - **Manual alternative:** `git subtree push --prefix backend https://<user>:<token>@huggingface.co/spaces/<user>/<space>.git main`
+4. **Backend URL:** `https://<user>-<space>.hf.space` — verify `…/api/health`.
 
-> The backend service mounts a 5 GB persistent disk at `/app/storage` for in-flight files,
-> which are auto-deleted after `FILE_RETENTION_MINUTES`.
+### 3.2 Frontend → Vercel
+1. Vercel → **New Project** → import the repo → **Root Directory = `frontend`**. (Vercel builds Next.js natively — the `frontend/Dockerfile` is ignored.)
+2. **Environment Variables:**
+   - `NEXT_PUBLIC_API_URL` = `https://<user>-<space>.hf.space` (your HF backend URL)
+   - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `NEXT_PUBLIC_SITE_URL` = your Vercel URL
+3. Deploy. (Changing any `NEXT_PUBLIC_*` later needs a **redeploy** — they're baked into the build.)
+
+### 3.3 Connect them
+- **CORS:** the backend already allows every `*.vercel.app` origin (production + previews) — no action needed. Add a custom domain to the backend's `CORS_ORIGINS` if you have one.
+- **Supabase:** add your Vercel URL to **Authentication → URL Configuration → Redirect URLs** (`https://your-app.vercel.app/**`).
+
+> **HF free tier notes:** 16 GB RAM (handles LibreOffice/video), **sleeps after ~48 h idle** (cold start on next request), and storage is **ephemeral** (fine — files auto-delete after 60 min). Keep secrets in HF **Secrets**; never commit `.env`.
 
 ---
 
-## 4. Deploy with Docker (any host)
+## 4. Alternative: Render (backend)
+
+The repo also ships a [`render.yaml`](./render.yaml) blueprint for the **backend** as a Docker
+web service (free plan, no persistent disk).
+
+1. Push this repo to GitHub.
+2. Render: **New → Blueprint**, select the repo. Fill the `sync: false` secrets (`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`).
+3. Point the frontend's `NEXT_PUBLIC_API_URL` at the backend's Render URL and redeploy.
+
+> ⚠️ Render's **free** tier is 512 MB RAM — enough for PDF/image/OCR/audio, but
+> **LibreOffice (Word/Excel/PPT) and video conversions will likely run out of memory**.
+> Use Hugging Face (above) or a paid Render plan (≥ 2 GB) for those.
+
+---
+
+## 5. Deploy with Docker (any host)
 
 ```bash
 # Backend
@@ -102,7 +138,7 @@ Or just `docker compose up --build` for both at once (see README).
 
 ---
 
-## 5. Production hardening checklist
+## 6. Production hardening checklist
 
 - [ ] Set a strong, unique `APP_SECRET_KEY`.
 - [ ] Lock `CORS_ORIGINS` to your real frontend domain(s) only.
@@ -116,7 +152,7 @@ Or just `docker compose up --build` for both at once (see README).
 
 ---
 
-## 6. Health & observability
+## 7. Health & observability
 
 - **Liveness:** `GET /api/health` → `{ status, version, capabilities: { ffmpeg, tesseract, libreoffice } }`
 - **API docs:** `GET /docs` (Swagger) and `/redoc`

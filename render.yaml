@@ -11,13 +11,12 @@ services:
     rootDir: backend
     dockerContext: backend
     dockerfilePath: Dockerfile
-    plan: standard
+    plan: free
     healthCheckPath: /api/health
     autoDeploy: true
-    disk:
-      name: storage
-      mountPath: /app/storage
-      sizeGB: 5
+    # NOTE: Render's free tier has no persistent disk, so /app/storage is
+    # ephemeral. That's fine here — processed files auto-delete after 60 min.
+    # Upgrade to a paid plan + re-add a `disk:` block for persistent storage.
     envVars:
       - key: ENVIRONMENT
         value: production

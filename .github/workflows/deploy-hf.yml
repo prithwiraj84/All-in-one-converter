@@ -1,0 +1,55 @@
+name: Deploy backend to Hugging Face Space
+
+# Pushes the contents of backend/ to a Hugging Face Space (Docker SDK) whenever
+# the backend changes, so your single GitHub repo stays the source of truth.
+#
+# One-time setup:
+#   1. Create a Docker Space on huggingface.co (it gives you <user>/<space>).
+#   2. Create an HF access token with WRITE scope (huggingface.co/settings/tokens).
+#   3. In this GitHub repo: Settings → Secrets and variables → Actions →
+#      add a secret named HF_TOKEN with that token.
+#   4. Edit HF_USERNAME and HF_SPACE below to match your Space.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "backend/**"
+      - ".github/workflows/deploy-hf.yml"
+  workflow_dispatch: {}
+
+env:
+  # ── EDIT THESE TWO ──────────────────────────────────────────
+  HF_USERNAME: prithwirajdas84
+  HF_SPACE: all-in-one-backend
+  # ────────────────────────────────────────────────────────────
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout (full history is required for subtree split)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Push backend/ to the Hugging Face Space
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "${HF_TOKEN:-}" ]; then
+            echo "::error::HF_TOKEN secret is not set. See setup steps in this file."
+            exit 1
+          fi
+          git config --global user.email "actions@users.noreply.github.com"
+          git config --global user.name "GitHub Actions"
+
+          # Recreate backend/ as the repository root on a temporary branch so the
+          # Dockerfile + README.md land at the Space root (where HF expects them).
+          git subtree split --prefix backend -b hf-deploy
+
+          # Force-push that subtree to the Space's main branch (triggers a rebuild).
+          git push --force \
+            "https://${HF_USERNAME}:${HF_TOKEN}@huggingface.co/spaces/${HF_USERNAME}/${HF_SPACE}.git" \
+            hf-deploy:main

@@ -44,16 +44,17 @@ class Settings(BaseSettings):
     def cors_origin_regex(self) -> str | None:
         """Extra allowed origins by pattern, complementing cors_origins_list.
 
-        - Development: any localhost / 127.0.0.1 port (the Next.js dev server
-          hops to 3001/3002 when 3000 is taken; without this its preflight is
-          rejected and the browser shows a generic "Network error").
-        - Production: any Vercel deployment (*.vercel.app), so per-branch preview
-          URLs reach the API without re-listing CORS on every deploy. Tighten to
-          your project — e.g. r"https://my-app[\\w-]*\\.vercel\\.app" — to lock down.
+        - Vercel deployments (*.vercel.app) are allowed in EVERY environment, so
+          the frontend keeps working even if `ENVIRONMENT` is left unset on the
+          backend host. Per-branch preview URLs are covered too. Tighten to your
+          project — e.g. r"https://my-app[\\w-]*\\.vercel\\.app" — to lock down.
+        - localhost / 127.0.0.1 (any port) is allowed only in development, where
+          the Next.js dev server hops ports (3001/3002…) when 3000 is taken.
         """
+        patterns = [r"https://([a-z0-9-]+\.)*vercel\.app"]
         if self.environment.lower() == "development":
-            return r"https?://(localhost|127\.0\.0\.1)(:\d+)?"
-        return r"https://([a-z0-9-]+\.)*vercel\.app"
+            patterns.append(r"https?://(localhost|127\.0\.0\.1)(:\d+)?")
+        return "|".join(f"(?:{p})" for p in patterns)
 
     @property
     def max_upload_bytes(self) -> int:
