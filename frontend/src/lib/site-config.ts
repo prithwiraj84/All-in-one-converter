@@ -17,7 +17,7 @@ export const SITE = {
  * — they power the footer's external + social links, which help SEO.
  */
 export const SOCIAL = {
-  twitter: "https://twitter.com/aioconverter",
+  twitter: "https://x.com/prithwirajdas84",
   github: "https://github.com/prithwiraj84/All-in-one-converter",
 } as const;
 
