@@ -54,6 +54,8 @@ export const metadata: Metadata = {
     title: `${SITE.name} — ${SITE.tagline}`,
     description: SITE.description,
     creator: SITE.twitter,
+    site: SITE.twitter,
+    images: [SITE.ogImage],
   },
   robots: { index: true, follow: true },
 };

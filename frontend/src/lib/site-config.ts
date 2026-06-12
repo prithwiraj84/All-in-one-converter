@@ -6,7 +6,7 @@ export const SITE = {
   tagline: "All Your File Tools. One Powerful Platform.",
   description:
     "Convert, compress, edit, protect and optimize PDFs, images, videos, audio and documents using one intelligent platform. 100+ free file tools.",
-  url: process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
+  url: process.env.NEXT_PUBLIC_SITE_URL || "https://all-in-one-converter.devprithwiraj.in",
   ogImage: "/og.png",
   twitter: "@aioconverter",
   email: "support@aioconverter.app",

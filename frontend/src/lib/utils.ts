@@ -65,7 +65,7 @@ export function fileExt(filename: string): string {
 
 /** Absolute URL helper for SEO metadata. */
 export function absoluteUrl(path = ""): string {
-  const base = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  const base = process.env.NEXT_PUBLIC_SITE_URL || "https://all-in-one-converter.devprithwiraj.in";
   return `${base}${path.startsWith("/") ? path : `/${path}`}`;
 }
 
