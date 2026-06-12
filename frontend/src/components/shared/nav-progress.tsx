@@ -1,25 +1,27 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { Loader } from "./loader";
 
 const MIN_VISIBLE_MS = 450; // keep the loader up long enough to actually see it
+const SAME_PATH_HIDE_MS = 700; // query-only navs (e.g. ?tab=) finish quickly
 const SAFETY_MS = 12000; // force-hide if a navigation never resolves
 
 /**
- * Global navigation loader. Next.js `loading.tsx` only shows while a route
- * segment suspends — static pages render instantly and never trigger it, and
- * query-only navigations (e.g. dashboard `?tab=` switches) don't either. This
- * intercepts internal link clicks so the branded loader appears on every
- * navigation, then clears it when the path OR query string actually changes.
+ * Global navigation loader. Uses only `usePathname` (NOT `useSearchParams`) so
+ * it never forces marketing pages into dynamic/streamed rendering — important
+ * for SEO, where a streamed page would show crawlers a "Loading…" shell. The
+ * loader is triggered by intercepting internal link clicks; cross-route
+ * navigations clear it on the pathname change, and same-page `?tab=` switches
+ * clear it on a short timer.
  */
 export function NavProgress() {
   const pathname = usePathname();
-  const searchParams = useSearchParams();
   const [active, setActive] = useState(false);
   const startRef = useRef(0);
+  const samePathRef = useRef(false);
   const safetyRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const hideRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -54,8 +56,7 @@ export function NavProgress() {
         return;
       }
       if (url.origin !== window.location.origin) return;
-      // Skip only if it's the exact same URL (same path AND query). A changed
-      // ?tab= counts as a navigation worth showing the loader for.
+      // Skip only if it's the exact same URL (same path AND query).
       if (
         url.pathname === window.location.pathname &&
         url.search === window.location.search
@@ -64,8 +65,14 @@ export function NavProgress() {
 
       clearTimeout(hideRef.current);
       clearTimeout(safetyRef.current);
+      samePathRef.current = url.pathname === window.location.pathname; // query-only nav
       startRef.current = Date.now();
       setActive(true);
+
+      // Same-path (?tab=) navs don't change pathname, so hide on a short timer.
+      if (samePathRef.current) {
+        hideRef.current = setTimeout(() => setActive(false), SAME_PATH_HIDE_MS);
+      }
       safetyRef.current = setTimeout(() => setActive(false), SAFETY_MS);
     }
 
@@ -73,10 +80,9 @@ export function NavProgress() {
     return () => document.removeEventListener("click", onClick, true);
   }, []);
 
-  // End: once the path or query actually changes, keep it up for the minimum
-  // duration. Depending on searchParams makes same-page ?tab= switches clear it.
+  // End (cross-route): hide once the pathname actually changes.
   useEffect(() => {
-    if (!active) return;
+    if (!active || samePathRef.current) return;
     clearTimeout(safetyRef.current);
     const elapsed = Date.now() - startRef.current;
     hideRef.current = setTimeout(
@@ -85,7 +91,7 @@ export function NavProgress() {
     );
     return () => clearTimeout(hideRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname, searchParams]);
+  }, [pathname]);
 
   return (
     <AnimatePresence>

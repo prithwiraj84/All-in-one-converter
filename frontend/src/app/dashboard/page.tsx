@@ -7,6 +7,9 @@ import {
   SettingsView,
 } from "@/components/dashboard/dashboard-views";
 
+// Auth-gated, per-user data (reads cookies) — never prerender this route.
+export const dynamic = "force-dynamic";
+
 async function loadData(): Promise<DashboardData> {
   try {
     const supabase = await createClient();

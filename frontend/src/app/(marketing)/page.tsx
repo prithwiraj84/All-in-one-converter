@@ -10,6 +10,10 @@ import { CtaSection } from "@/components/landing/cta-section";
 import { JsonLd, softwareAppSchema, faqSchema } from "@/components/seo/structured-data";
 import { FAQS, SITE } from "@/lib/site-config";
 
+// Force static rendering so the full marketing content is baked into the
+// initial HTML — SEO crawlers must not receive a streamed "Loading…" shell.
+export const dynamic = "force-static";
+
 export default function HomePage() {
   return (
     <>
