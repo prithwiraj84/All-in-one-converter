@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { getTool, getCategory, type Tool } from "@/lib/tools-registry";
 import { cn } from "@/lib/utils";
+import { ToolDemo } from "./tool-demos";
 
 const SHOWCASE_SLUGS = [
   "merge-pdf",
@@ -30,7 +31,6 @@ export function ShowcaseSection() {
   const [activeIndex, setActiveIndex] = useState(0);
   const activeTool = SHOWCASE_TOOLS[activeIndex];
   const activeCategory = getCategory(activeTool.category);
-  const ActiveIcon = activeTool.icon;
 
   return (
     <section className="relative overflow-hidden py-16 sm:py-24">
@@ -48,7 +48,7 @@ export function ShowcaseSection() {
           description="Pick a tool to preview exactly what it does. Same clean, fast experience across PDFs, documents, images and video."
         />
 
-        <div className="mt-12 grid gap-6 lg:mt-16 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:gap-8">
+        <div className="mt-12 grid gap-6 lg:mt-16 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:items-start lg:gap-8">
           {/* Left: selectable tool list */}
           <div className="flex flex-col gap-2.5">
             {SHOWCASE_TOOLS.map((tool, index) => {
@@ -99,7 +99,7 @@ export function ShowcaseSection() {
           </div>
 
           {/* Right: animated preview panel */}
-          <div className="relative min-h-[380px] overflow-hidden rounded-2xl border border-border bg-white shadow-card-hover lg:min-h-[440px]">
+          <div className="relative min-h-[460px] overflow-hidden rounded-2xl border border-border bg-white shadow-card-hover lg:min-h-[520px]">
             {/* Gradient halo tied to category */}
             <div
               className={cn(
@@ -117,30 +117,32 @@ export function ShowcaseSection() {
                 transition={{ duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
                 className="flex h-full flex-col p-7 sm:p-9"
               >
-                <div className="flex items-start justify-between gap-4">
-                  <span
-                    className={cn(
-                      "grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br text-white shadow-glow",
-                      activeCategory.gradient,
-                    )}
-                  >
-                    <ActiveIcon className="h-8 w-8" />
-                  </span>
-                  <Badge variant="secondary" className="gap-1.5">
+                {/* Header: title + category */}
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="font-display text-xl font-bold tracking-tight text-foreground sm:text-2xl">
+                    {activeTool.title}
+                  </h3>
+                  <Badge variant="secondary" className="shrink-0 gap-1.5">
                     <activeCategory.icon className="h-3.5 w-3.5" />
                     {activeCategory.label}
                   </Badge>
                 </div>
 
-                <h3 className="mt-6 font-display text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
-                  {activeTool.title}
-                </h3>
+                {/* Animated demo — grows to fill the panel (no desktop gap) */}
+                <div className="relative mt-5 min-h-[170px] flex-1 overflow-hidden rounded-xl border border-border bg-gradient-to-br from-surface to-white">
+                  <div className="pointer-events-none absolute inset-0 bg-grid opacity-40" />
+                  <div className="absolute inset-2.5">
+                    <ToolDemo slug={activeTool.slug} />
+                  </div>
+                </div>
 
-                <p className="mt-4 text-base leading-relaxed text-muted-foreground">
+                {/* Full description (restored) */}
+                <p className="mt-5 text-[15px] leading-relaxed text-muted-foreground">
                   {activeTool.longDescription}
                 </p>
 
-                <div className="mt-auto pt-8">
+                {/* Open button */}
+                <div className="pt-6">
                   <Button asChild variant="gradient" size="lg" className="w-full sm:w-auto">
                     <Link href={`/${activeTool.slug}`}>
                       Open {activeTool.title}
