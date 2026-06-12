@@ -4,6 +4,7 @@ import { SITE } from "@/lib/site-config";
 import { QueryProvider } from "@/providers/query-provider";
 import { ThemeProvider } from "@/providers/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { Suspense } from "react";
 import { NavProgress } from "@/components/shared/nav-progress";
 import "./globals.css";
 
@@ -77,7 +78,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen bg-background font-sans antialiased">
         <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false} forcedTheme="light">
           <QueryProvider>
-            <NavProgress />
+            <Suspense fallback={null}>
+              <NavProgress />
+            </Suspense>
             {children}
             <Toaster />
           </QueryProvider>

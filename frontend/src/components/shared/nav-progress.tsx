@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import { Loader } from "./loader";
 
@@ -10,12 +10,14 @@ const SAFETY_MS = 12000; // force-hide if a navigation never resolves
 
 /**
  * Global navigation loader. Next.js `loading.tsx` only shows while a route
- * segment suspends — static pages render instantly and never trigger it. This
+ * segment suspends — static pages render instantly and never trigger it, and
+ * query-only navigations (e.g. dashboard `?tab=` switches) don't either. This
  * intercepts internal link clicks so the branded loader appears on every
- * navigation, regardless of how fast the destination renders.
+ * navigation, then clears it when the path OR query string actually changes.
  */
 export function NavProgress() {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [active, setActive] = useState(false);
   const startRef = useRef(0);
   const safetyRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -51,9 +53,14 @@ export function NavProgress() {
       } catch {
         return;
       }
-      // Internal navigations to a different path only.
       if (url.origin !== window.location.origin) return;
-      if (url.pathname === window.location.pathname) return;
+      // Skip only if it's the exact same URL (same path AND query). A changed
+      // ?tab= counts as a navigation worth showing the loader for.
+      if (
+        url.pathname === window.location.pathname &&
+        url.search === window.location.search
+      )
+        return;
 
       clearTimeout(hideRef.current);
       clearTimeout(safetyRef.current);
@@ -66,7 +73,8 @@ export function NavProgress() {
     return () => document.removeEventListener("click", onClick, true);
   }, []);
 
-  // End: once the route actually changes, keep it up for the minimum duration.
+  // End: once the path or query actually changes, keep it up for the minimum
+  // duration. Depending on searchParams makes same-page ?tab= switches clear it.
   useEffect(() => {
     if (!active) return;
     clearTimeout(safetyRef.current);
@@ -76,9 +84,8 @@ export function NavProgress() {
       Math.max(0, MIN_VISIBLE_MS - elapsed),
     );
     return () => clearTimeout(hideRef.current);
-    // Intentionally only re-run on pathname changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pathname]);
+  }, [pathname, searchParams]);
 
   return (
     <AnimatePresence>
