@@ -12,6 +12,15 @@ export const SITE = {
   email: "support@aioconverter.app",
 } as const;
 
+/**
+ * Social profiles (external links). ⚠️ Replace these with your REAL handles/URLs
+ * — they power the footer's external + social links, which help SEO.
+ */
+export const SOCIAL = {
+  twitter: "https://twitter.com/aioconverter",
+  github: "https://github.com/prithwiraj84/All-in-one-converter",
+} as const;
+
 export const NAV_LINKS = [
   { label: "Tools", href: "/tools" },
   { label: "Pricing", href: "/#pricing" },

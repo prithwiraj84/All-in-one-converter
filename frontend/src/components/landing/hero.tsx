@@ -129,25 +129,21 @@ export function Hero() {
           animate="show"
           className="font-display text-[2.9rem] font-extrabold leading-[1.02] tracking-tight sm:text-6xl lg:text-[5rem]"
         >
-          {["Transform"].map((w) => (
-            <motion.span key={w} variants={headlineWord} className="mr-3 inline-block">
-              {w}
-            </motion.span>
-          ))}
-          <motion.span variants={headlineWord} className="mr-3 inline-block text-rainbow">
-            Any&nbsp;File
-          </motion.span>
+          {/* Real spaces between words so the H1 reads as proper text for SEO. */}
+          <motion.span variants={headlineWord} className="inline-block">
+            Transform
+          </motion.span>{" "}
+          <motion.span variants={headlineWord} className="inline-block text-rainbow">
+            Any File
+          </motion.span>{" "}
           <br />
-          {["In", "Seconds"].map((w) => (
-            <motion.span key={w} variants={headlineWord} className="mr-3 inline-block">
-              {w}
-            </motion.span>
-          ))}
-          <motion.span
-            variants={headlineWord}
-            className="inline-block"
-            // a little wink emoji that pops in last
-          >
+          <motion.span variants={headlineWord} className="inline-block">
+            In
+          </motion.span>{" "}
+          <motion.span variants={headlineWord} className="inline-block">
+            Seconds
+          </motion.span>{" "}
+          <motion.span variants={headlineWord} className="inline-block" aria-hidden="true">
             <span className="inline-block animate-wiggle">✨</span>
           </motion.span>
         </motion.h1>
@@ -159,8 +155,8 @@ export function Hero() {
           transition={{ duration: 0.6, delay: 0.5 }}
           className="mx-auto mt-7 max-w-2xl text-lg text-muted-foreground sm:text-xl"
         >
-          Convert, compress, edit, protect and optimize PDFs, images, videos, audio and documents —
-          all in one delightfully simple platform.
+          Transform any file in seconds. Convert, compress, edit, protect and optimize PDFs,
+          images, videos, audio and documents with 100+ free online tools — no software to install.
         </motion.p>
 
         {/* CTAs */}
