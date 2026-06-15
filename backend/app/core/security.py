@@ -81,7 +81,7 @@ ALLOWED_EXTENSIONS = {
     # video
     ".mp4", ".webm", ".mov", ".avi", ".mkv",
     # archives
-    ".zip", ".tar", ".gz", ".tgz",
+    ".zip", ".tar", ".gz", ".tgz", ".rar", ".7z",
     # fonts
     ".ttf", ".otf", ".woff", ".woff2",
 }

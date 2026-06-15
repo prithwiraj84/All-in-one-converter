@@ -8,7 +8,7 @@ from app.schemas.jobs import JobResult
 from app.services import archive_service
 
 router = APIRouter(prefix="/api/archive", tags=["archive"])
-ARCHIVES = {".zip", ".tar", ".gz", ".tgz"}
+ARCHIVES = {".zip", ".tar", ".gz", ".tgz", ".rar", ".7z"}
 
 
 @router.post("/extract", response_model=JobResult)

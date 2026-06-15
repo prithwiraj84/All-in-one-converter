@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Copy,
   Download,
+  File as FileIcon,
   Loader2,
   RotateCcw,
   Sparkles,
@@ -221,6 +222,33 @@ export function ToolWorkspace({ slug }: { slug: string }) {
                     <Copy className="h-4 w-4" /> Copy text
                   </Button>
                 </div>
+              ) : state.result.files && state.result.files.length > 0 ? (
+                <div className="space-y-2">
+                  <p className="text-sm font-medium">
+                    {state.result.files.length} files extracted
+                  </p>
+                  <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border">
+                    {state.result.files.map((f) => (
+                      <li key={f.name} className="flex items-center gap-3 px-3.5 py-2.5">
+                        <FileIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium">{f.name}</p>
+                          <p className="text-xs text-muted-foreground">{formatBytes(f.size)}</p>
+                        </div>
+                        {canDownload && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="shrink-0"
+                            onClick={() => triggerDownload(downloadUrl(f.download_url), f.name)}
+                          >
+                            <Download className="h-3.5 w-3.5" /> Save
+                          </Button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
               ) : (
                 <div className="flex flex-col items-center gap-1 rounded-xl border border-border p-4 text-center">
                   <p className="text-sm font-medium">
@@ -253,7 +281,10 @@ export function ToolWorkspace({ slug }: { slug: string }) {
                         )
                       }
                     >
-                      <Download className="h-4 w-4" /> Download
+                      <Download className="h-4 w-4" />
+                      {state.result.files && state.result.files.length > 0
+                        ? "Download all (.zip)"
+                        : "Download"}
                     </Button>
                   ) : null)}
                 <Button variant="outline" size="lg" className="flex-1" onClick={handleReset}>

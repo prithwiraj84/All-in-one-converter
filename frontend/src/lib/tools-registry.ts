@@ -719,22 +719,30 @@ export const TOOLS: Tool[] = [
   /* ── Archive ─────────────────────────────────────────────── */
   {
     slug: "zip-extractor",
-    title: "ZIP Extractor",
+    title: "Archive Extractor",
     category: "archive",
-    description: "Extract the contents of ZIP archives right in your browser flow.",
+    description: "Extract files from ZIP, RAR, 7z, TAR and TAR.GZ archives.",
     longDescription:
-      "ZIP Extractor opens ZIP archives and lets you download their contents. View the file list and grab everything inside without installing software.",
+      "Archive Extractor opens ZIP, RAR, 7z, TAR and TAR.GZ archives and gives you the contents back — the file itself when there's one inside, or a single ZIP of everything for multi-file archives. No software to install.",
     icon: FolderArchive,
-    accept: ["application/zip", "application/x-zip-compressed"],
+    accept: [
+      "application/zip",
+      "application/x-zip-compressed",
+      "application/vnd.rar",
+      "application/x-rar-compressed",
+      "application/x-7z-compressed",
+      "application/x-tar",
+      "application/gzip",
+    ],
     multiple: false,
     endpoint: "/api/archive/extract",
-    actionLabel: "Extract ZIP",
+    actionLabel: "Extract Archive",
     resultType: "file",
     seo: {
-      title: "ZIP Extractor — Unzip Files Online Free",
+      title: "Archive Extractor — Extract ZIP, RAR & 7z Online Free",
       description:
-        "Extract ZIP archives online for free. View and download the contents of any ZIP file. Fast and secure.",
-      keywords: ["zip extractor", "unzip online", "open zip file", "extract zip"],
+        "Extract ZIP, RAR, 7z and TAR archives online for free. Get the files inside, fast and secure — no software to install.",
+      keywords: ["archive extractor", "rar extractor", "7z extractor", "unzip online", "extract zip rar 7z"],
     },
   },
   {

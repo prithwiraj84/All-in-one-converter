@@ -60,6 +60,8 @@ export interface JobResult {
   download_url?: string;
   output_filename?: string;
   output_size?: number;
+  /** Multiple downloadable outputs (e.g. files extracted from an archive). */
+  files?: { name: string; download_url: string; size: number }[];
   /** For OCR / text tools that return inline content. */
   text?: string;
   meta?: Record<string, unknown>;

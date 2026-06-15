@@ -31,6 +31,7 @@ class Settings(BaseSettings):
     tesseract_cmd: str = "tesseract"
     libreoffice_cmd: str = "soffice"
     ffmpeg_cmd: str = "ffmpeg"
+    unar_cmd: str = "unar"  # universal archive extractor (RAR, 7z, …)
 
     # Optional Supabase (service role — backend only)
     supabase_url: str | None = None
