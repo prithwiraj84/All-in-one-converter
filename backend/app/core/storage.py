@@ -74,6 +74,10 @@ def cleanup_expired() -> int:
     if not root.exists():
         return 0
     for child in root.iterdir():
+        # Skip dotted dirs (.cache/.models hold downloaded AI models) — only job
+        # directories (uuid hex) are subject to retention cleanup.
+        if child.name.startswith("."):
+            continue
         try:
             if child.is_dir() and child.stat().st_mtime < cutoff:
                 shutil.rmtree(child, ignore_errors=True)

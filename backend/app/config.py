@@ -37,6 +37,20 @@ class Settings(BaseSettings):
     supabase_url: str | None = None
     supabase_service_role_key: str | None = None
 
+    # AI tools
+    # An LLM powers image captioning and (optionally) higher-quality translation.
+    # Gemini (Google AI Studio) is preferred; Claude is a fallback. Without either
+    # key, captioning is disabled and translation uses the free Google engine.
+    # Speech-to-text model size: tiny|base|small (CPU).
+    gemini_api_key: str | None = None
+    gemini_model: str = "gemini-3.1-flash-lite"
+    anthropic_api_key: str | None = None
+    anthropic_model: str = "claude-3-5-sonnet-20241022"
+    whisper_model: str = "base"
+    # Colorization (Photo Restore) downloads this Caffe model (~123 MB) on first
+    # use. Override with a mirror if this one ever goes offline.
+    colorize_model_url: str = "https://www.dropbox.com/s/dx0qvhhp5hbcx7z/colorization_release_v2.caffemodel?dl=1"
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

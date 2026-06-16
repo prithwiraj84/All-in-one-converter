@@ -8,7 +8,13 @@ FROM python:3.12-slim
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
-    STORAGE_DIR=/app/storage
+    STORAGE_DIR=/app/storage \
+    # AI model caches → writable storage (rembg, faster-whisper, etc.)
+    XDG_CACHE_HOME=/app/storage/.cache \
+    HF_HOME=/app/storage/.cache/huggingface \
+    U2NET_HOME=/app/storage/.cache/u2net \
+    NUMBA_CACHE_DIR=/app/storage/.cache/numba \
+    MPLCONFIGDIR=/app/storage/.cache/mpl
 
 WORKDIR /app
 
@@ -32,7 +38,8 @@ COPY . .
 
 # Non-root runtime user + writable storage
 RUN useradd --create-home appuser \
-    && mkdir -p /app/storage \
+    && mkdir -p /app/storage/.cache/huggingface /app/storage/.cache/u2net \
+       /app/storage/.cache/numba /app/storage/.cache/mpl \
     && chown -R appuser:appuser /app
 USER appuser
 
