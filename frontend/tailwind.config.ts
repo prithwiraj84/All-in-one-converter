@@ -140,6 +140,17 @@ const config: Config = {
         "spin-reverse": {
           to: { transform: "rotate(-360deg)" },
         },
+        // Waving hand — rotates about the wrist, then rests between waves.
+        wave: {
+          "0%, 60%, 100%": { transform: "rotate(0deg)" },
+          "10%, 30%, 50%": { transform: "rotate(15deg)" },
+          "20%, 40%": { transform: "rotate(-9deg)" },
+        },
+        // Twinkling sparkle — scales + fades in and out.
+        twinkle: {
+          "0%, 100%": { transform: "scale(0.55)", opacity: "0.3" },
+          "50%": { transform: "scale(1)", opacity: "1" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -154,6 +165,8 @@ const config: Config = {
         "bounce-slow": "bounce-slow 4s ease-in-out infinite",
         "rainbow-pan": "rainbow-pan 6s linear infinite",
         "spin-reverse": "spin-reverse 2.4s linear infinite",
+        wave: "wave 2.5s ease-in-out infinite",
+        twinkle: "twinkle 1.8s ease-in-out infinite",
       },
     },
   },

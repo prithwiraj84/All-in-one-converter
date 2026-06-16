@@ -21,6 +21,7 @@ import {
   RefreshCw,
   type LucideIcon,
 } from "lucide-react";
+import { WavingHand } from "./waving-hand";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge, type BadgeProps } from "@/components/ui/badge";
@@ -31,6 +32,8 @@ import { formatBytes, timeAgo, cn } from "@/lib/utils";
 import { downloadUrl } from "@/lib/api";
 import { formatTaskQuota, RETENTION_MINUTES } from "@/lib/plans";
 import type { DashboardData, DashFile, DashConversion, DashUsage } from "@/lib/dashboard-data";
+import type { ReactNode } from "react";
+import { RefreshButton, DeleteFileButton } from "./dashboard-actions";
 
 /* ── Shared primitives ──────────────────────────────────────────── */
 
@@ -133,11 +136,22 @@ function EmptyState({
   );
 }
 
-function SectionTitle({ title, subtitle }: { title: string; subtitle?: string }) {
+function SectionTitle({
+  title,
+  subtitle,
+  action,
+}: {
+  title: string;
+  subtitle?: string;
+  action?: ReactNode;
+}) {
   return (
-    <div className="mb-6">
-      <h1 className="font-display text-3xl font-bold tracking-tight">{title}</h1>
-      {subtitle && <p className="mt-1.5 text-muted-foreground">{subtitle}</p>}
+    <div className="mb-6 flex items-start justify-between gap-4">
+      <div>
+        <h1 className="font-display text-3xl font-bold tracking-tight">{title}</h1>
+        {subtitle && <p className="mt-1.5 text-muted-foreground">{subtitle}</p>}
+      </div>
+      {action}
     </div>
   );
 }
@@ -181,15 +195,18 @@ function FileRow({ file }: { file: DashFile }) {
           {formatBytes(file.size)} · {timeAgo(file.created_at)}
         </p>
       </div>
-      {expired || !href ? (
-        <Badge variant="muted">Expired</Badge>
-      ) : (
-        <Button asChild variant="outline" size="sm">
-          <a href={href} download={file.filename} rel="noopener">
-            <Download className="h-3.5 w-3.5" /> Download
-          </a>
-        </Button>
-      )}
+      <div className="flex shrink-0 items-center gap-1.5">
+        {expired || !href ? (
+          <Badge variant="muted">Expired</Badge>
+        ) : (
+          <Button asChild variant="outline" size="sm">
+            <a href={href} download={file.filename} rel="noopener">
+              <Download className="h-3.5 w-3.5" /> Download
+            </a>
+          </Button>
+        )}
+        <DeleteFileButton fileId={file.id} filename={file.filename} />
+      </div>
     </li>
   );
 }
@@ -208,18 +225,22 @@ export function DashboardOverview({ data }: { data: DashboardData }) {
     <div>
       <section className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="font-display text-3xl font-bold tracking-tight sm:text-4xl">
-            Welcome back <span aria-hidden>👋</span>
+          <h1 className="flex items-center gap-2.5 font-display text-3xl font-bold tracking-tight sm:text-4xl">
+            Welcome back
+            <WavingHand className="h-9 w-9 sm:h-11 sm:w-11" />
           </h1>
           <p className="mt-2 max-w-xl text-muted-foreground">
             Here&apos;s your {limits.label} workspace. Files auto-delete after {RETENTION_MINUTES} minutes.
           </p>
         </div>
-        <Button asChild variant="gradient" size="lg" className="shrink-0 shadow-glow">
-          <Link href="/tools">
-            New conversion <ArrowRight className="h-4 w-4" />
-          </Link>
-        </Button>
+        <div className="flex shrink-0 items-center gap-2">
+          <RefreshButton />
+          <Button asChild variant="gradient" size="lg" className="shadow-glow">
+            <Link href="/tools">
+              New conversion <ArrowRight className="h-4 w-4" />
+            </Link>
+          </Button>
+        </div>
       </section>
 
       <section className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -343,6 +364,7 @@ export function FilesView({ data }: { data: DashboardData }) {
       <SectionTitle
         title="My Files"
         subtitle={`${formatBytes(usage.storageUsed)} of ${formatBytes(usage.storageQuota)} used · files auto-delete after ${RETENTION_MINUTES} minutes`}
+        action={<RefreshButton />}
       />
       <Card className="mb-6 p-5">
         <div className="mb-2 flex items-center justify-between text-sm">
@@ -385,6 +407,7 @@ export function ConversionsView({ data }: { data: DashboardData }) {
       <SectionTitle
         title="Conversions"
         subtitle={`${usage.tasksToday} of ${formatTaskQuota(usage.dailyQuota)} tasks used today on the ${limits.label} plan`}
+        action={<RefreshButton />}
       />
       {dailyFinite && (
         <Card className="mb-6 p-5">

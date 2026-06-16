@@ -6,6 +6,7 @@ import {
   ConversionsView,
   SettingsView,
 } from "@/components/dashboard/dashboard-views";
+import { DashboardAutoRefresh } from "@/components/dashboard/dashboard-actions";
 
 // Auth-gated, per-user data (reads cookies) — never prerender this route.
 export const dynamic = "force-dynamic";
@@ -31,15 +32,25 @@ export default async function DashboardHome({
   const { tab } = await searchParams;
   const data = await loadData();
 
-  switch (tab) {
-    case "files":
-      return <FilesView data={data} />;
-    case "conversions":
-      return <ConversionsView data={data} />;
-    case "settings":
-    case "account":
-      return <SettingsView data={data} />;
-    default:
-      return <DashboardOverview data={data} />;
-  }
+  const view = (() => {
+    switch (tab) {
+      case "files":
+        return <FilesView data={data} />;
+      case "conversions":
+        return <ConversionsView data={data} />;
+      case "settings":
+      case "account":
+        return <SettingsView data={data} />;
+      default:
+        return <DashboardOverview data={data} />;
+    }
+  })();
+
+  return (
+    <>
+      {/* Keeps files/conversions/usage live (focus + interval + realtime). */}
+      {data.loggedIn && <DashboardAutoRefresh />}
+      {view}
+    </>
+  );
 }

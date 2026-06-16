@@ -103,6 +103,8 @@ export async function getDashboardData(
   const conversions = (conversionsRes.data ?? []) as DashConversion[];
 
   const now = Date.now();
+  // Only surface files that are still downloadable — expired rows aren't useful
+  // (the processed file is gone) and would otherwise pile up in "My Files".
   const activeFiles = files.filter(
     (f) => !f.expires_at || new Date(f.expires_at).getTime() > now,
   );
@@ -117,7 +119,7 @@ export async function getDashboardData(
       null,
     plan,
     limits,
-    files,
+    files: activeFiles,
     conversions,
     usage: {
       storageUsed,
