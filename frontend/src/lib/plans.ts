@@ -14,6 +14,8 @@ export interface PlanLimits {
   maxFileBytes: number;
   /** Conversions allowed per calendar day. `Infinity` = unlimited. */
   dailyTasks: number;
+  /** Minutes a processed file is kept before auto-deletion. */
+  retentionMinutes: number;
   /** Short price label for UI. */
   priceLabel: string;
 }
@@ -28,6 +30,7 @@ export const PLAN_LIMITS: Record<SubscriptionPlan, PlanLimits> = {
     storageBytes: 100 * MB,
     maxFileBytes: 10 * MB,
     dailyTasks: 5,
+    retentionMinutes: 60,
     priceLabel: "Free",
   },
   pro: {
@@ -35,6 +38,7 @@ export const PLAN_LIMITS: Record<SubscriptionPlan, PlanLimits> = {
     storageBytes: 2 * GB,
     maxFileBytes: 1 * GB,
     dailyTasks: Infinity,
+    retentionMinutes: 1440,
     priceLabel: "₹99/mo",
   },
   business: {
@@ -42,6 +46,7 @@ export const PLAN_LIMITS: Record<SubscriptionPlan, PlanLimits> = {
     storageBytes: 20 * GB,
     maxFileBytes: 5 * GB,
     dailyTasks: Infinity,
+    retentionMinutes: 1440,
     priceLabel: "Custom",
   },
 };
@@ -54,4 +59,13 @@ export function planLimits(plan?: SubscriptionPlan | null): PlanLimits {
 /** Render a task quota, showing "Unlimited" for the infinite tier. */
 export function formatTaskQuota(n: number): string {
   return Number.isFinite(n) ? String(n) : "Unlimited";
+}
+
+/** Render a retention window: "1 day" / "2 days" / "60 minutes". */
+export function formatRetention(minutes: number): string {
+  if (minutes > 0 && minutes % 1440 === 0) {
+    const d = minutes / 1440;
+    return `${d} day${d === 1 ? "" : "s"}`;
+  }
+  return `${minutes} minutes`;
 }

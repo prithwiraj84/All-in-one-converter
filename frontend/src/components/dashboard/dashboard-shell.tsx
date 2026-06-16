@@ -21,6 +21,8 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { SignOutButton } from "./sign-out-button";
 import { UpgradeButton } from "@/components/upgrade-button";
+import { useSubscription } from "@/hooks/use-subscription";
+import { subscriptionStatus } from "@/lib/subscription";
 import { cn } from "@/lib/utils";
 
 interface NavItem {
@@ -124,6 +126,34 @@ function NavList({
 }
 
 function UpgradeCard() {
+  const { plan, proUntil, ready } = useSubscription();
+  const { isPaid, daysLeft, expiryLabel } = subscriptionStatus(plan, proUntil);
+
+  // Paid plan → show subscription status + Renew (no upgrade/pricing prompts).
+  if (ready && isPaid) {
+    return (
+      <div className="gradient-border shadow-card">
+        <div className="rounded-[calc(var(--radius)-2px)] bg-gradient-to-br from-primary/5 via-secondary/5 to-accent/5 p-4">
+          <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-brand-gradient bg-[length:200%_200%] px-2.5 py-1 text-[11px] font-semibold text-white shadow-glow">
+            <Sparkles className="h-3 w-3" />
+            Pro active
+          </div>
+          <p className="text-sm font-semibold leading-snug text-foreground">
+            {daysLeft != null ? `${daysLeft} day${daysLeft === 1 ? "" : "s"} left` : "Pro plan active"}
+          </p>
+          {expiryLabel && (
+            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
+              Renews on {expiryLabel}
+            </p>
+          )}
+          <UpgradeButton variant="gradient" size="sm" className="mt-3 w-full">
+            Renew Pro
+          </UpgradeButton>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="gradient-border shadow-card">
       <div className="rounded-[calc(var(--radius)-2px)] bg-gradient-to-br from-primary/5 via-secondary/5 to-accent/5 p-4">

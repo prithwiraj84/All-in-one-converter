@@ -24,6 +24,33 @@ async function detail(res: Response, fallback: string): Promise<string> {
   }
 }
 
+export interface PaymentConfig {
+  enabled: boolean;
+  currency?: string;
+  period_days?: number;
+}
+
+/** Is the payment gateway configured? (False → dev/testing mode.) */
+export async function getPaymentConfig(): Promise<PaymentConfig> {
+  try {
+    const res = await fetch(`${API_BASE}/api/payments/config`);
+    if (!res.ok) return { enabled: false };
+    return res.json();
+  } catch {
+    return { enabled: false };
+  }
+}
+
+/** Dev-only: grant the plan without payment (works only when keys aren't set). */
+export async function devUpgrade(plan: string, token: string): Promise<void> {
+  const res = await fetch(`${API_BASE}/api/payments/dev-upgrade`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({ plan }),
+  });
+  if (!res.ok) throw new Error(await detail(res, "Couldn't unlock the plan."));
+}
+
 /** Ask the backend to create a Razorpay order for a plan. */
 export async function createOrder(plan: string, token: string): Promise<CreateOrderResponse> {
   const res = await fetch(`${API_BASE}/api/payments/create-order`, {

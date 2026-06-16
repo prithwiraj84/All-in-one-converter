@@ -7,6 +7,8 @@ import {
   SettingsView,
 } from "@/components/dashboard/dashboard-views";
 import { DashboardAutoRefresh } from "@/components/dashboard/dashboard-actions";
+import { ExpiryBanner } from "@/components/dashboard/expiry-banner";
+import { subscriptionStatus } from "@/lib/subscription";
 
 // Auth-gated, per-user data (reads cookies) — never prerender this route.
 export const dynamic = "force-dynamic";
@@ -46,10 +48,16 @@ export default async function DashboardHome({
     }
   })();
 
+  const sub = subscriptionStatus(data.plan, data.proUntil);
+  const showExpiryWarning = sub.isPaid && sub.daysLeft != null && sub.daysLeft <= 5;
+
   return (
     <>
       {/* Keeps files/conversions/usage live (focus + interval + realtime). */}
       {data.loggedIn && <DashboardAutoRefresh />}
+      {showExpiryWarning && (
+        <ExpiryBanner daysLeft={sub.daysLeft!} expiryLabel={sub.expiryLabel} />
+      )}
       {view}
     </>
   );

@@ -20,7 +20,10 @@ class Settings(BaseSettings):
 
     # Uploads / processing
     max_upload_mb: int = 100
+    # Auto-delete window. Free plan / default keeps files for this long; paid
+    # plans (Pro/Business) keep them longer.
     file_retention_minutes: int = 60
+    paid_retention_minutes: int = 1440  # Pro / Business: 1 day
     storage_dir: str = "./storage"
 
     # Security

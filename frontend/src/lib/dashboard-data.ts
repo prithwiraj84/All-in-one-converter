@@ -38,6 +38,8 @@ export interface DashboardData {
   email: string | null;
   name: string | null;
   plan: SubscriptionPlan;
+  /** When a paid plan lapses back to Free (ISO), or null. */
+  proUntil: string | null;
   limits: PlanLimits;
   files: DashFile[];
   conversions: DashConversion[];
@@ -62,6 +64,7 @@ function empty(loggedIn: boolean): DashboardData {
     email: null,
     name: null,
     plan: "free",
+    proUntil: null,
     limits,
     files: [],
     conversions: [],
@@ -88,7 +91,7 @@ export async function getDashboardData(
   if (!user) return empty(false);
 
   const [profileRes, filesRes, conversionsRes, tasksTodayRes] = await Promise.all([
-    supabase.from("profiles").select("plan, email, name").eq("id", user.id).maybeSingle(),
+    supabase.from("profiles").select("plan, email, name, pro_until").eq("id", user.id).maybeSingle(),
     supabase.from("files").select("*").order("created_at", { ascending: false }).limit(100),
     supabase.from("conversions").select("*").order("created_at", { ascending: false }).limit(100),
     supabase
@@ -118,6 +121,7 @@ export async function getDashboardData(
       (user.user_metadata?.full_name as string | undefined) ??
       null,
     plan,
+    proUntil: (profileRes.data?.pro_until as string | undefined) ?? null,
     limits,
     files: activeFiles,
     conversions,

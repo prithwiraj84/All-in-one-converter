@@ -49,6 +49,11 @@ def plan_limits(plan: str | None) -> PlanLimits:
     return PLAN_LIMITS.get(plan or "free", PLAN_LIMITS["free"])
 
 
+def retention_minutes_for(plan: str | None) -> int:
+    """How long a plan's output files are kept before auto-deletion."""
+    return settings.file_retention_minutes if (plan or "free") == "free" else settings.paid_retention_minutes
+
+
 @dataclass
 class QuotaContext:
     user_id: str | None

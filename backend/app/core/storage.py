@@ -67,8 +67,14 @@ def resolve_download(job_id: str, filename: str) -> Path | None:
 
 
 def cleanup_expired() -> int:
-    """Delete job directories older than the retention window. Returns count removed."""
-    cutoff = time.time() - settings.file_retention_minutes * 60
+    """Delete job directories past their per-plan retention window.
+
+    Each job dir carries a `.retain` marker with its retention minutes (written
+    at creation: Free 60 · Pro/Business 1 day). Missing marker → the default.
+    Returns the number of directories removed.
+    """
+    now = time.time()
+    default_retention = settings.file_retention_minutes
     removed = 0
     root = settings.storage_path
     if not root.exists():
@@ -79,7 +85,16 @@ def cleanup_expired() -> int:
         if child.name.startswith("."):
             continue
         try:
-            if child.is_dir() and child.stat().st_mtime < cutoff:
+            if not child.is_dir():
+                continue
+            retain = default_retention
+            marker = child / ".retain"
+            if marker.is_file():
+                try:
+                    retain = int(marker.read_text().strip())
+                except (ValueError, OSError):
+                    pass
+            if child.stat().st_mtime < now - retain * 60:
                 shutil.rmtree(child, ignore_errors=True)
                 removed += 1
         except OSError:

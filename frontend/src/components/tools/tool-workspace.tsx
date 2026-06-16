@@ -26,6 +26,7 @@ import {
   type PendingDownload,
 } from "@/lib/pending-download";
 import { formatBytes } from "@/lib/utils";
+import { formatRetention } from "@/lib/plans";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
@@ -387,7 +388,8 @@ export function ToolWorkspace({ slug }: { slug: string }) {
                 {tool.actionLabel}
               </Button>
               <p className="text-center text-xs text-muted-foreground">
-                Files are encrypted in transit and deleted automatically within 60 minutes.
+                Files are encrypted in transit and deleted automatically within{" "}
+                {formatRetention(limits.retentionMinutes)}.
               </p>
             </motion.div>
           )}

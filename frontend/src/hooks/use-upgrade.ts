@@ -5,7 +5,13 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useUser } from "./use-user";
 import { createClient } from "@/lib/supabase/client";
-import { createOrder, verifyPayment, type RazorpayResult } from "@/lib/payments";
+import {
+  createOrder,
+  devUpgrade,
+  getPaymentConfig,
+  verifyPayment,
+  type RazorpayResult,
+} from "@/lib/payments";
 
 interface RazorpayInstance {
   open: () => void;
@@ -61,6 +67,16 @@ export function useUpgrade() {
         const token = data.session?.access_token;
         if (!token) {
           router.push("/login?redirectedFrom=/dashboard");
+          return;
+        }
+
+        // Dev/testing mode (no Razorpay keys) → grant Pro instantly, no payment.
+        const config = await getPaymentConfig();
+        if (!config.enabled) {
+          await devUpgrade(plan, token);
+          toast.success("Pro unlocked (test mode) — no payment needed 🎉");
+          router.refresh();
+          window.setTimeout(() => window.location.reload(), 1000);
           return;
         }
 

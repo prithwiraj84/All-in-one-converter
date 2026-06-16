@@ -126,6 +126,25 @@ async def verify(body: VerifyIn, user: dict = Depends(require_user)) -> dict:
     return {"plan": body.plan, "until": until}
 
 
+@router.post("/dev-upgrade")
+async def dev_upgrade(body: CreateOrderIn, user: dict = Depends(require_user)) -> dict:
+    """Development/testing shortcut: grant the plan to the signed-in user WITHOUT
+    payment, but only while Razorpay is NOT configured. Once live keys are set
+    this refuses (403), so it can't be abused in production.
+
+    ⚠️ This means: deploy with no Razorpay keys = anyone signed in can self-grant
+    Pro for free. Always set the keys before going live.
+    """
+    if settings.razorpay_enabled:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "Payments are live — use checkout to upgrade."
+        )
+    if settings.plan_amount(body.plan) is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Unknown plan.")
+    until = await _grant_plan(user["id"], body.plan)
+    return {"plan": body.plan, "until": until, "dev": True}
+
+
 @router.post("/webhook")
 async def webhook(request: Request) -> dict:
     """Reliable server-side confirmation (configure in the Razorpay dashboard)."""

@@ -30,11 +30,12 @@ import { SignOutButton } from "./sign-out-button";
 import { FEATURED_TOOLS, getTool } from "@/lib/tools-registry";
 import { formatBytes, timeAgo, cn } from "@/lib/utils";
 import { downloadUrl } from "@/lib/api";
-import { formatTaskQuota, RETENTION_MINUTES } from "@/lib/plans";
+import { formatTaskQuota, formatRetention } from "@/lib/plans";
 import type { DashboardData, DashFile, DashConversion, DashUsage } from "@/lib/dashboard-data";
 import type { ReactNode } from "react";
 import { RefreshButton, DeleteFileButton } from "./dashboard-actions";
 import { UpgradeButton } from "@/components/upgrade-button";
+import { subscriptionStatus } from "@/lib/subscription";
 
 /* ── Shared primitives ──────────────────────────────────────────── */
 
@@ -231,7 +232,7 @@ export function DashboardOverview({ data }: { data: DashboardData }) {
             <WavingHand className="h-9 w-9 sm:h-11 sm:w-11" />
           </h1>
           <p className="mt-2 max-w-xl text-muted-foreground">
-            Here&apos;s your {limits.label} workspace. Files auto-delete after {RETENTION_MINUTES} minutes.
+            Here&apos;s your {limits.label} workspace. Files auto-delete after {formatRetention(limits.retentionMinutes)}.
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-2">
@@ -249,7 +250,7 @@ export function DashboardOverview({ data }: { data: DashboardData }) {
           icon={Files}
           label="Stored files"
           value={String(usage.filesActive)}
-          caption={`Auto-deleted after ${RETENTION_MINUTES} min`}
+          caption={`Auto-deleted after ${formatRetention(limits.retentionMinutes)}`}
         />
         <MetricCard
           icon={Zap}
@@ -316,7 +317,7 @@ export function DashboardOverview({ data }: { data: DashboardData }) {
               <EmptyState
                 icon={Files}
                 title="No files yet"
-                hint="Processed files appear here for 60 minutes, then auto-delete."
+                hint={`Processed files appear here for ${formatRetention(limits.retentionMinutes)}, then auto-delete.`}
               />
             ) : (
               <ul className="divide-y divide-border">
@@ -357,14 +358,14 @@ export function DashboardOverview({ data }: { data: DashboardData }) {
 /* ── My Files ───────────────────────────────────────────────────── */
 
 export function FilesView({ data }: { data: DashboardData }) {
-  const { files, usage } = data;
+  const { files, usage, limits } = data;
   const storagePct = usage.storageQuota ? (usage.storageUsed / usage.storageQuota) * 100 : 0;
 
   return (
     <div>
       <SectionTitle
         title="My Files"
-        subtitle={`${formatBytes(usage.storageUsed)} of ${formatBytes(usage.storageQuota)} used · files auto-delete after ${RETENTION_MINUTES} minutes`}
+        subtitle={`${formatBytes(usage.storageUsed)} of ${formatBytes(usage.storageQuota)} used · files auto-delete after ${formatRetention(limits.retentionMinutes)}`}
         action={<RefreshButton />}
       />
       <Card className="mb-6 p-5">
@@ -381,7 +382,7 @@ export function FilesView({ data }: { data: DashboardData }) {
             <EmptyState
               icon={Files}
               title="No files yet"
-              hint="Processed files appear here for 60 minutes, then auto-delete."
+              hint={`Processed files appear here for ${formatRetention(limits.retentionMinutes)}, then auto-delete.`}
             />
           ) : (
             <ul className="divide-y divide-border">
@@ -456,6 +457,7 @@ function PlanLimitRow({ label, value }: { label: string; value: string }) {
 
 export function SettingsView({ data }: { data: DashboardData }) {
   const { limits, plan, usage, email, name } = data;
+  const sub = subscriptionStatus(plan, data.proUntil);
   const storagePct = usage.storageQuota ? (usage.storageUsed / usage.storageQuota) * 100 : 0;
 
   return (
@@ -501,7 +503,7 @@ export function SettingsView({ data }: { data: DashboardData }) {
           <PlanLimitRow label="Storage" value={formatBytes(limits.storageBytes)} />
           <PlanLimitRow label="Max file size" value={formatBytes(limits.maxFileBytes)} />
           <PlanLimitRow label="Tasks per day" value={formatTaskQuota(limits.dailyTasks)} />
-          <PlanLimitRow label="Auto-delete files after" value={`${RETENTION_MINUTES} minutes`} />
+          <PlanLimitRow label="Auto-delete files after" value={formatRetention(limits.retentionMinutes)} />
 
           <div className="mt-5">
             <div className="mb-2 flex items-center justify-between text-sm">
@@ -513,10 +515,28 @@ export function SettingsView({ data }: { data: DashboardData }) {
             <ProgressBar value={storagePct} />
           </div>
 
-          {plan === "free" && (
+          {plan === "free" ? (
             <UpgradeButton variant="gradient" className="mt-5 w-full">
               <Sparkles className="h-4 w-4" /> Upgrade to Pro — 2 GB storage, 1 GB files, unlimited tasks
             </UpgradeButton>
+          ) : (
+            <div className="mt-5 space-y-3 rounded-xl border border-border bg-surface/50 p-4">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Subscription</span>
+                <span className="font-semibold">
+                  {sub.daysLeft != null
+                    ? `${sub.daysLeft} day${sub.daysLeft === 1 ? "" : "s"} left`
+                    : "Active"}
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Renews on</span>
+                <span className="font-semibold">{sub.expiryLabel ?? "—"}</span>
+              </div>
+              <UpgradeButton variant="gradient" className="w-full">
+                <Sparkles className="h-4 w-4" /> Renew Pro subscription
+              </UpgradeButton>
+            </div>
           )}
         </CardContent>
       </Card>

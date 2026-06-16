@@ -5,7 +5,7 @@ import { Reveal } from "@/components/shared/reveal";
 import { SectionHeading } from "@/components/shared/section-heading";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { UpgradeButton } from "@/components/upgrade-button";
+import { ProCta } from "@/components/landing/pro-cta";
 import { PRICING_TIERS } from "@/lib/site-config";
 import { cn } from "@/lib/utils";
 
@@ -100,11 +100,9 @@ export function PricingSection() {
                   ))}
                 </ul>
 
-                {/* CTA — the Pro tier opens checkout; others link to signup. */}
+                {/* CTA — the Pro tier opens checkout (or Renew); others link to signup. */}
                 {tier.name === "Pro" ? (
-                  <UpgradeButton plan="pro" size="lg" variant="gradient" className="mt-8 w-full">
-                    {tier.cta}
-                  </UpgradeButton>
+                  <ProCta defaultCta={tier.cta} />
                 ) : (
                   <Button
                     asChild

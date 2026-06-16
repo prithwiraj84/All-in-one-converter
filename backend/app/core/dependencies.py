@@ -11,7 +11,7 @@ from starlette.concurrency import run_in_threadpool
 from app.config import settings
 from app.core.security import scan_for_malware, validate_upload
 from app.core.storage import job_dir, new_job_id, save_upload
-from app.core.quota import current_quota, fmt_bytes, guess_mime
+from app.core.quota import current_quota, fmt_bytes, guess_mime, retention_minutes_for
 from app.core import supa
 from app.schemas.jobs import JobResult
 
@@ -44,9 +44,17 @@ async def run_job(
     plan_label = ctx.limits.label if ctx else "Free"
     max_bytes = min(ctx.limits.max_file_bytes, settings.max_upload_bytes) if ctx else settings.max_upload_bytes
 
+    retention = retention_minutes_for(ctx.plan if ctx else "free")
+
     job_id = new_job_id()
     out_dir = job_dir(job_id)
     in_dir = out_dir / "in"
+    # Stamp the per-plan retention so the cleanup loop deletes this job at the
+    # right time (Free 60 min · Pro/Business 1 day), not the global default.
+    try:
+        (out_dir / ".retain").write_text(str(retention))
+    except OSError:
+        pass
 
     saved: list[Path] = []
     try:
@@ -78,7 +86,7 @@ async def run_job(
                 output_size=result.output_size,
                 download_url=result.download_url,
                 mime=guess_mime(result.output_filename),
-                retention_minutes=settings.file_retention_minutes,
+                retention_minutes=retention,
             )
         except Exception:  # noqa: BLE001 - history must never break a job
             pass
