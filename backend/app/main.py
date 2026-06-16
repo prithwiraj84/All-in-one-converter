@@ -12,7 +12,11 @@ from app import __version__
 from app.config import settings
 from app.core.errors import register_exception_handlers
 from app.core.quota import enforce_quota
-from app.core.security import RateLimitMiddleware, SecurityHeadersMiddleware
+from app.core.security import (
+    ConcurrencyLimitMiddleware,
+    RateLimitMiddleware,
+    SecurityHeadersMiddleware,
+)
 from app.core.storage import cleanup_expired, retention_loop
 from app.routers import all_routers, files as files_router, health as health_router
 
@@ -50,6 +54,9 @@ app = FastAPI(
 # (including rate-limit 429s and error responses) carries CORS headers, and so
 # the preflight short-circuit runs before the rate limiter counts the OPTIONS.
 app.add_middleware(SecurityHeadersMiddleware)
+# Backpressure: cap concurrent jobs so heavy load can't OOM the instance. Sits
+# inside CORS/rate-limit so its 503s still carry CORS headers.
+app.add_middleware(ConcurrencyLimitMiddleware)
 app.add_middleware(RateLimitMiddleware)
 app.add_middleware(
     CORSMiddleware,

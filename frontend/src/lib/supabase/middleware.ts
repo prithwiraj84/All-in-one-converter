@@ -37,12 +37,20 @@ export async function updateSession(request: NextRequest) {
     },
   );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
   const path = request.nextUrl.pathname;
   const isProtected = PROTECTED_PREFIXES.some((p) => path.startsWith(p));
+
+  // Refresh + read the session. A *transient* failure (Supabase hiccup, auth
+  // rate-limit, or a token-refresh race under concurrent requests) must NOT
+  // bounce a logged-in user to /login — only a clean "no user" should. So on a
+  // thrown error we let the request through and re-check on the next navigation.
+  let user = null;
+  try {
+    const { data } = await supabase.auth.getUser();
+    user = data.user;
+  } catch {
+    return supabaseResponse;
+  }
 
   if (!user && isProtected) {
     const url = request.nextUrl.clone();

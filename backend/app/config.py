@@ -27,6 +27,14 @@ class Settings(BaseSettings):
     rate_limit_per_minute: int = 60
     app_secret_key: str = "change-me-in-production"
 
+    # Concurrency / backpressure — caps simultaneous jobs so a small instance
+    # can't be overwhelmed (OOM) under load. Heavy tools (documents, video, AI
+    # models) get a tighter cap. Requests wait up to the timeout for a free slot,
+    # then receive a clean 503 instead of piling on and crashing the box.
+    max_concurrent_jobs: int = 6
+    max_concurrent_heavy: int = 2
+    job_queue_timeout_seconds: float = 20.0
+
     # External binaries
     tesseract_cmd: str = "tesseract"
     libreoffice_cmd: str = "soffice"
@@ -66,7 +74,12 @@ class Settings(BaseSettings):
         - localhost / 127.0.0.1 (any port) is allowed only in development, where
           the Next.js dev server hops ports (3001/3002…) when 3000 is taken.
         """
-        patterns = [r"https://([a-z0-9-]+\.)*vercel\.app"]
+        patterns = [
+            r"https://([a-z0-9-]+\.)*vercel\.app",
+            # Production custom domain (apex + any subdomain) — allowed in every
+            # environment so the live site never depends on CORS_ORIGINS being set.
+            r"https://([a-z0-9-]+\.)*devprithwiraj\.in",
+        ]
         if self.environment.lower() == "development":
             patterns.append(r"https?://(localhost|127\.0\.0\.1)(:\d+)?")
         return "|".join(f"(?:{p})" for p in patterns)

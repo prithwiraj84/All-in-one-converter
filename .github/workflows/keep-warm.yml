@@ -1,0 +1,38 @@
+name: Keep backend warm
+
+# Pings the backend's health endpoint on a schedule so the Hugging Face free
+# Space doesn't go idle — which avoids the cold-start "Network error" users hit
+# on the first request after a quiet period.
+#
+# SETUP (one-time): add a repository *variable* named BACKEND_URL pointing at
+# your HF Space, e.g. https://<user>-<space>.hf.space
+#   Repo → Settings → Secrets and variables → Actions → Variables → New variable
+#
+# Note: GitHub-scheduled runs are best-effort (can be delayed a few minutes) and
+# pause after ~60 days with no repo commits. For a stricter free alternative use
+# an external monitor like cron-job.org or UptimeRobot pointing at /api/health.
+
+on:
+  schedule:
+    - cron: "*/15 * * * *" # every 15 minutes
+  workflow_dispatch: {} # allow manual runs from the Actions tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping /api/health
+        run: |
+          URL="${{ vars.BACKEND_URL }}"
+          if [ -z "$URL" ]; then
+            echo "::warning::Set the BACKEND_URL repo variable to enable keep-warm."
+            exit 0
+          fi
+          code=$(curl -s -o /dev/null -w "%{http_code}" --max-time 90 "${URL%/}/api/health" || echo "000")
+          echo "Health check -> HTTP $code"
+          if [ "$code" = "200" ]; then
+            echo "Backend is awake."
+          else
+            # Don't fail the workflow on a transient blip — just surface a warning.
+            echo "::warning::Backend health returned $code"
+          fi

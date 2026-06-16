@@ -40,6 +40,9 @@ export function runTool({
 
     const xhr = new XMLHttpRequest();
     xhr.open("POST", url, true);
+    // Heavy conversions (documents via LibreOffice, video, AI) can be slow —
+    // allow up to 3 min before declaring the request hung.
+    xhr.timeout = 180_000;
     if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
     if (toolSlug) xhr.setRequestHeader("X-Tool-Slug", toolSlug);
 
@@ -66,8 +69,15 @@ export function runTool({
     };
 
     xhr.onerror = () =>
-      reject(new Error("Network error — is the backend running and reachable?"));
-    xhr.ontimeout = () => reject(new Error("The request timed out."));
+      reject(
+        new Error(
+          "Couldn't reach the server — it may be waking up or briefly busy. Please wait a moment and try again.",
+        ),
+      );
+    xhr.ontimeout = () =>
+      reject(
+        new Error("The server took too long to respond (it may be busy). Please try again in a moment."),
+      );
 
     if (signal) {
       signal.addEventListener("abort", () => xhr.abort());

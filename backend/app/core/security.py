@@ -1,6 +1,7 @@
 """Security middleware and upload validation."""
 from __future__ import annotations
 
+import asyncio
 import time
 from collections import defaultdict, deque
 
@@ -66,6 +67,68 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         hits.append(now)
         return await call_next(request)
+
+
+class ConcurrencyLimitMiddleware(BaseHTTPMiddleware):
+    """Caps concurrent processing jobs so a small instance can't be OOM-crashed.
+
+    A global semaphore bounds *all* processing jobs; a tighter one bounds the
+    heavy tools (documents, video, AI models). A request waits up to
+    `job_queue_timeout_seconds` for a free slot, then gets a clean 503 (with
+    Retry-After) instead of piling on and taking the whole container down.
+
+    Per-instance (in-memory) — correct for the single-container deployment. For
+    a multi-instance setup, move this to a shared limiter (e.g. Redis).
+    """
+
+    HEAVY_PREFIXES = ("/api/document/", "/api/video/", "/api/ai/")
+
+    def __init__(self, app):
+        super().__init__(app)
+        self._total = asyncio.Semaphore(max(1, settings.max_concurrent_jobs))
+        self._heavy = asyncio.Semaphore(max(1, settings.max_concurrent_heavy))
+        self._timeout = max(1.0, settings.job_queue_timeout_seconds)
+
+    async def _acquire(self, sem: asyncio.Semaphore) -> bool:
+        try:
+            await asyncio.wait_for(sem.acquire(), timeout=self._timeout)
+            return True
+        except asyncio.TimeoutError:
+            return False
+
+    @staticmethod
+    def _busy() -> Response:
+        return Response(
+            content='{"detail":"The server is busy right now — please try again in a few seconds.","code":"server_busy"}',
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            media_type="application/json",
+            headers={"Retry-After": "5"},
+        )
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        path = request.url.path
+        # Only throttle the actual processing endpoints (POST under /api, minus
+        # the open health/download routes). Everything else passes straight
+        # through so the UI, auth and downloads stay responsive under load.
+        if (
+            request.method != "POST"
+            or not path.startswith("/api/")
+            or path.startswith("/api/files")
+        ):
+            return await call_next(request)
+
+        heavy = path.startswith(self.HEAVY_PREFIXES)
+        if not await self._acquire(self._total):
+            return self._busy()
+        if heavy and not await self._acquire(self._heavy):
+            self._total.release()
+            return self._busy()
+        try:
+            return await call_next(request)
+        finally:
+            if heavy:
+                self._heavy.release()
+            self._total.release()
 
 
 # ── Upload validation ──────────────────────────────────────────────
