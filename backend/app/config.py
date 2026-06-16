@@ -55,6 +55,8 @@ class Settings(BaseSettings):
     anthropic_api_key: str | None = None
     anthropic_model: str = "claude-3-5-sonnet-20241022"
     whisper_model: str = "base"
+    # Bound Whisper's CPU threads so a transcription can't peg every core.
+    whisper_cpu_threads: int = 2
     # Colorization (Photo Restore) downloads this Caffe model (~123 MB) on first
     # use. Override with a mirror if this one ever goes offline.
     colorize_model_url: str = "https://www.dropbox.com/s/dx0qvhhp5hbcx7z/colorization_release_v2.caffemodel?dl=1"

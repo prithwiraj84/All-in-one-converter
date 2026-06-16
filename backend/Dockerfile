@@ -14,7 +14,16 @@ ENV PYTHONUNBUFFERED=1 \
     HF_HOME=/app/storage/.cache/huggingface \
     U2NET_HOME=/app/storage/.cache/u2net \
     NUMBA_CACHE_DIR=/app/storage/.cache/numba \
-    MPLCONFIGDIR=/app/storage/.cache/mpl
+    MPLCONFIGDIR=/app/storage/.cache/mpl \
+    # Thread control — stops ML libs (numpy/opencv/onnxruntime/ctranslate2) from
+    # busy-spinning idle threads (the cause of high CPU at rest) and from
+    # over-subscribing the 2 vCPUs. PASSIVE = idle OpenMP threads sleep, not spin.
+    OMP_WAIT_POLICY=PASSIVE \
+    OMP_NUM_THREADS=2 \
+    OPENBLAS_NUM_THREADS=2 \
+    MKL_NUM_THREADS=2 \
+    NUMEXPR_NUM_THREADS=2 \
+    TOKENIZERS_PARALLELISM=false
 
 WORKDIR /app
 

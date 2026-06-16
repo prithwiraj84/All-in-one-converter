@@ -5,6 +5,7 @@ Whisper and edge-tts are imported lazily so the app boots without them; FFmpeg
 """
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 
 from app.config import settings
@@ -26,14 +27,35 @@ def _to_wav(src: Path, out_dir: Path) -> Path:
     return wav
 
 
+_whisper_model = None
+_whisper_lock = threading.Lock()
+
+
+def _get_whisper():
+    """Load the Whisper model once and reuse it (saves the ~140 MB reload + the
+    CPU/thread churn of recreating it on every request). The model is thread-safe
+    for concurrent transcription."""
+    global _whisper_model
+    if _whisper_model is None:
+        try:
+            from faster_whisper import WhisperModel
+        except Exception as exc:  # noqa: BLE001
+            raise ProcessingError(
+                "Transcription isn't available on this server (the 'faster-whisper' engine is not installed)."
+            ) from exc
+        with _whisper_lock:
+            if _whisper_model is None:
+                _whisper_model = WhisperModel(
+                    settings.whisper_model,
+                    device="cpu",
+                    compute_type="int8",
+                    cpu_threads=max(1, settings.whisper_cpu_threads),
+                )
+    return _whisper_model
+
+
 def _whisper_segments(wav: Path, *, language: str, translate: bool):
-    try:
-        from faster_whisper import WhisperModel
-    except Exception as exc:  # noqa: BLE001
-        raise ProcessingError(
-            "Transcription isn't available on this server (the 'faster-whisper' engine is not installed)."
-        ) from exc
-    model = WhisperModel(settings.whisper_model, device="cpu", compute_type="int8")
+    model = _get_whisper()
     segments, info = model.transcribe(
         str(wav),
         language=None if language in ("", "auto") else language,
