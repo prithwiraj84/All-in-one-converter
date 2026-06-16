@@ -97,7 +97,7 @@ export const PRICING_TIERS: PricingTier[] = [
   },
   {
     name: "Pro",
-    price: 749,
+    price: 99,
     period: "month",
     description: "For professionals who convert files every day.",
     highlight: true,
@@ -113,7 +113,7 @@ export const PRICING_TIERS: PricingTier[] = [
   },
   {
     name: "Business",
-    price: 2499,
+    price: 499,
     period: "month",
     description: "For teams that need scale, control and an API.",
     cta: "Contact Sales",

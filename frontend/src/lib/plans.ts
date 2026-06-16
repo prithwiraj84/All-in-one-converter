@@ -35,7 +35,7 @@ export const PLAN_LIMITS: Record<SubscriptionPlan, PlanLimits> = {
     storageBytes: 2 * GB,
     maxFileBytes: 1 * GB,
     dailyTasks: Infinity,
-    priceLabel: "₹749/mo",
+    priceLabel: "₹99/mo",
   },
   business: {
     label: "Business",

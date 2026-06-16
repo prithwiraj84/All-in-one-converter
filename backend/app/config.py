@@ -51,8 +51,8 @@ class Settings(BaseSettings):
     razorpay_key_secret: str | None = None
     razorpay_webhook_secret: str | None = None
     razorpay_currency: str = "INR"
-    razorpay_pro_amount: int = 74900       # ₹749
-    razorpay_business_amount: int = 249900  # ₹2,499
+    razorpay_pro_amount: int = 9900       # ₹99
+    razorpay_business_amount: int = 49900  # ₹499
     pro_period_days: int = 30
 
     @property
