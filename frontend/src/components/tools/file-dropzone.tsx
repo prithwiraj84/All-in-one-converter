@@ -2,8 +2,8 @@
 
 import { useCallback } from "react";
 import { useDropzone, type Accept } from "react-dropzone";
-import { motion, AnimatePresence } from "framer-motion";
-import { UploadCloud, File as FileIcon, X } from "lucide-react";
+import { motion, AnimatePresence, Reorder, useDragControls } from "framer-motion";
+import { UploadCloud, File as FileIcon, X, GripVertical } from "lucide-react";
 import { cn, formatBytes, fileExt } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
@@ -19,6 +19,68 @@ interface FileDropzoneProps {
 function toAccept(mimes?: string[]): Accept | undefined {
   if (!mimes || mimes.length === 0) return undefined;
   return Object.fromEntries(mimes.map((m) => [m, [] as string[]]));
+}
+
+/** Stable key for a File across reorders (name/size/lastModified don't change). */
+function fileKey(f: File): string {
+  return `${f.name}-${f.size}-${f.lastModified}`;
+}
+
+function FileRow({
+  file,
+  draggable,
+  onRemove,
+}: {
+  file: File;
+  draggable: boolean;
+  onRemove: () => void;
+}) {
+  const controls = useDragControls();
+  return (
+    <Reorder.Item
+      value={file}
+      dragListener={false}
+      dragControls={controls}
+      layout
+      initial={{ opacity: 0, x: -8 }}
+      animate={{ opacity: 1, x: 0 }}
+      exit={{ opacity: 0, x: 8 }}
+      className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 shadow-sm"
+    >
+      {draggable && (
+        <span
+          onPointerDown={(e) => controls.start(e)}
+          className="shrink-0 cursor-grab touch-none text-muted-foreground/70 transition-colors hover:text-foreground active:cursor-grabbing"
+          aria-label="Drag to reorder"
+          role="button"
+        >
+          <GripVertical className="h-4 w-4" />
+        </span>
+      )}
+      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+        <FileIcon className="h-5 w-5" />
+      </span>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium">{file.name}</p>
+        <p className="text-xs text-muted-foreground">
+          {fileExt(file.name).toUpperCase()} · {formatBytes(file.size)}
+        </p>
+      </div>
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon"
+        className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+        onClick={(e) => {
+          e.stopPropagation();
+          onRemove();
+        }}
+        aria-label={`Remove ${file.name}`}
+      >
+        <X className="h-4 w-4" />
+      </Button>
+    </Reorder.Item>
+  );
 }
 
 export function FileDropzone({
@@ -45,7 +107,8 @@ export function FileDropzone({
     disabled,
   });
 
-  const removeFile = (index: number) => onChange(files.filter((_, i) => i !== index));
+  // Reordering only matters when the tool takes several files (e.g. Merge PDF).
+  const reorderable = multiple && files.length > 1;
 
   return (
     <div className="space-y-4">
@@ -90,46 +153,27 @@ export function FileDropzone({
 
       <AnimatePresence initial={false}>
         {files.length > 0 && (
-          <motion.ul
+          <motion.div
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: "auto" }}
             exit={{ opacity: 0, height: 0 }}
-            className="space-y-2"
           >
-            {files.map((file, i) => (
-              <motion.li
-                key={`${file.name}-${i}`}
-                layout
-                initial={{ opacity: 0, x: -8 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 8 }}
-                className="flex items-center gap-3 rounded-xl border border-border bg-card p-3 shadow-sm"
-              >
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
-                  <FileIcon className="h-5 w-5" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-medium">{file.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {fileExt(file.name).toUpperCase()} · {formatBytes(file.size)}
-                  </p>
-                </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    removeFile(i);
-                  }}
-                  aria-label={`Remove ${file.name}`}
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              </motion.li>
-            ))}
-          </motion.ul>
+            {reorderable && (
+              <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
+                <GripVertical className="h-3.5 w-3.5" /> Drag to set the order they&apos;re combined in
+              </p>
+            )}
+            <Reorder.Group axis="y" values={files} onReorder={onChange} className="space-y-2">
+              {files.map((file) => (
+                <FileRow
+                  key={fileKey(file)}
+                  file={file}
+                  draggable={reorderable}
+                  onRemove={() => onChange(files.filter((f) => f !== file))}
+                />
+              ))}
+            </Reorder.Group>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

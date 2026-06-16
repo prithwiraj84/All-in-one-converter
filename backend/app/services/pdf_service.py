@@ -175,19 +175,27 @@ def watermark(job_id: str, src: Path, out_dir: Path, *, text: str = "CONFIDENTIA
         raise ProcessingError("Watermark text is required.")
     alpha = max(0.05, min(1.0, int(opacity) / 100))
     doc = fitz.open(str(src))
+    fontname = "helv"
     for page in doc:
         rect = page.rect
-        # PyMuPDF's `rotate` only accepts multiples of 90, so we apply a 45°
-        # diagonal via a morph matrix pivoting on the page centre instead.
-        pivot = fitz.Point(rect.width / 2, rect.height / 2)
-        morph = (pivot, fitz.Matrix(1, 1).prerotate(45))
-        page.insert_textbox(
-            rect,
+        cx, cy = rect.width / 2, rect.height / 2
+        diag = (rect.width**2 + rect.height**2) ** 0.5
+        # Scale the font so the line spans ~72% of the page diagonal, clamped.
+        base_fs = 50.0
+        base_w = fitz.get_text_length(text, fontname=fontname, fontsize=base_fs) or 1.0
+        fontsize = max(16.0, min(140.0, base_fs * (diag * 0.72) / base_w))
+        tw = fitz.get_text_length(text, fontname=fontname, fontsize=fontsize)
+        # Baseline placed so a single line is centred on the page, then the whole
+        # thing is rotated 45° about the page centre → a true centred diagonal.
+        point = fitz.Point(cx - tw / 2, cy + fontsize * 0.35)
+        morph = (fitz.Point(cx, cy), fitz.Matrix(1, 1).prerotate(45))
+        page.insert_text(
+            point,
             text,
-            fontsize=48,
+            fontname=fontname,
+            fontsize=fontsize,
             color=(0.5, 0.5, 0.5),
             fill_opacity=alpha,
-            align=fitz.TEXT_ALIGN_CENTER,
             morph=morph,
         )
     out = out_dir / f"{stem(src.name)}-watermarked.pdf"
