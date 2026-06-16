@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { getTool } from "@/lib/tools-registry";
+import { isClientTool } from "@/lib/client-tools";
 import { useToolRunner } from "@/hooks/use-tool-runner";
 import { useUser } from "@/hooks/use-user";
 import { usePlan } from "@/hooks/use-plan";
@@ -47,6 +48,11 @@ export function ToolWorkspace({ slug }: { slug: string }) {
   // Tools are free to try; downloading requires login. If keys aren't set up
   // yet, don't gate (the provider buttons would just error) — treat as allowed.
   const canDownload = !isSupabaseConfigured() || Boolean(user);
+  // In-browser results never touched the server → free to download (no gate),
+  // and their download_url is already a local blob: URL.
+  const isClientResult = Boolean(state.result?.client);
+  const allowDownload = canDownload || isClientResult;
+  const resolveDl = (path: string) => (isClientResult ? path : downloadUrl(path));
 
   // After the OAuth round-trip the in-memory result is gone, so we restore the
   // file the user was trying to download from sessionStorage.
@@ -70,6 +76,7 @@ export function ToolWorkspace({ slug }: { slug: string }) {
 
   const busy = state.stage === "uploading" || state.stage === "processing";
   const Icon = tool.icon;
+  const clientTool = isClientTool(tool.slug);
 
   const mergedOptions = useMemo(() => {
     // Inject hidden defaults (e.g. fixed output format for jpg-to-png).
@@ -81,41 +88,46 @@ export function ToolWorkspace({ slug }: { slug: string }) {
   }, [options, tool.options]);
 
   async function handleRun() {
-    // Wait for a signed-in user's plan/usage to load before enforcing limits,
-    // otherwise stale defaults (Free, 0 tasks) could let a quota be bypassed.
-    if (loggedIn && !planReady) {
-      toast.message("One moment — loading your plan…");
-      return;
-    }
+    // In-browser tools don't touch the server, so they skip plan/quota checks
+    // entirely (instant + unlimited, even when signed out). Server-bound tools
+    // still enforce limits up front for fast feedback.
+    if (!clientTool) {
+      // Wait for a signed-in user's plan/usage to load before enforcing limits,
+      // otherwise stale defaults (Free, 0 tasks) could let a quota be bypassed.
+      if (loggedIn && !planReady) {
+        toast.message("One moment — loading your plan…");
+        return;
+      }
 
-    // ── Quota: per-file size (by plan) ──────────────────────────────
-    const oversize = files.find((f) => f.size > limits.maxFileBytes);
-    if (oversize) {
-      toast.error(
-        `"${oversize.name}" is ${formatBytes(oversize.size)} — over the ${formatBytes(
-          limits.maxFileBytes,
-        )} per-file limit on the ${limits.label} plan.`,
-      );
-      return;
-    }
+      // ── Quota: per-file size (by plan) ──────────────────────────────
+      const oversize = files.find((f) => f.size > limits.maxFileBytes);
+      if (oversize) {
+        toast.error(
+          `"${oversize.name}" is ${formatBytes(oversize.size)} — over the ${formatBytes(
+            limits.maxFileBytes,
+          )} per-file limit on the ${limits.label} plan.`,
+        );
+        return;
+      }
 
-    // ── Quota: daily task limit (tracked for signed-in users) ───────
-    if (loggedIn && Number.isFinite(limits.dailyTasks) && tasksToday >= limits.dailyTasks) {
-      toast.error(
-        `You've used all ${limits.dailyTasks} of today's tasks on the ${limits.label} plan. Upgrade to Pro for unlimited.`,
-      );
-      return;
-    }
+      // ── Quota: daily task limit (tracked for signed-in users) ───────
+      if (loggedIn && Number.isFinite(limits.dailyTasks) && tasksToday >= limits.dailyTasks) {
+        toast.error(
+          `You've used all ${limits.dailyTasks} of today's tasks on the ${limits.label} plan. Upgrade to Pro for unlimited.`,
+        );
+        return;
+      }
 
-    // ── Quota: storage cap (approximate — measured on input size) ───
-    const incoming = files.reduce((s, f) => s + f.size, 0);
-    if (loggedIn && storageUsed + incoming > limits.storageBytes) {
-      toast.error(
-        `This would exceed your ${formatBytes(limits.storageBytes)} storage on the ${limits.label} plan (${formatBytes(
-          storageUsed,
-        )} already used). Files auto-delete after 60 min, or upgrade to Pro.`,
-      );
-      return;
+      // ── Quota: storage cap (approximate — measured on input size) ───
+      const incoming = files.reduce((s, f) => s + f.size, 0);
+      if (loggedIn && storageUsed + incoming > limits.storageBytes) {
+        toast.error(
+          `This would exceed your ${formatBytes(limits.storageBytes)} storage on the ${limits.label} plan (${formatBytes(
+            storageUsed,
+          )} already used). Files auto-delete after 60 min, or upgrade to Pro.`,
+        );
+        return;
+      }
     }
 
     let token: string | undefined;
@@ -129,10 +141,10 @@ export function ToolWorkspace({ slug }: { slug: string }) {
 
     const result = await run(files, mergedOptions, token);
 
-    // History + usage are recorded authoritatively by the backend (it counts
-    // the task and enforces the quota). Optimistically bump the local count so
-    // the UI reflects it immediately.
-    if (result && result.status !== "failed" && loggedIn) {
+    // Only *server* tasks count against quota/history. A client result never
+    // hit the backend; one that fell back to the server (result.client unset)
+    // is recorded authoritatively there — bump the local count for those.
+    if (result && result.status !== "failed" && !result.client && loggedIn) {
       bumpTasks();
     }
   }
@@ -199,7 +211,9 @@ export function ToolWorkspace({ slug }: { slug: string }) {
                 <div>
                   <p className="font-display text-lg font-semibold">All done!</p>
                   <p className="text-sm text-muted-foreground">
-                    Your file was processed successfully.
+                    {isClientResult
+                      ? "Processed privately in your browser — it never left your device."
+                      : "Your file was processed successfully."}
                   </p>
                 </div>
               </div>
@@ -225,7 +239,7 @@ export function ToolWorkspace({ slug }: { slug: string }) {
               ) : state.result.files && state.result.files.length > 0 ? (
                 <div className="space-y-2">
                   <p className="text-sm font-medium">
-                    {state.result.files.length} files extracted
+                    {state.result.files.length} files ready
                   </p>
                   <ul className="divide-y divide-border overflow-hidden rounded-xl border border-border">
                     {state.result.files.map((f) => (
@@ -235,12 +249,12 @@ export function ToolWorkspace({ slug }: { slug: string }) {
                           <p className="truncate text-sm font-medium">{f.name}</p>
                           <p className="text-xs text-muted-foreground">{formatBytes(f.size)}</p>
                         </div>
-                        {canDownload && (
+                        {allowDownload && (
                           <Button
                             variant="ghost"
                             size="sm"
                             className="shrink-0"
-                            onClick={() => triggerDownload(downloadUrl(f.download_url), f.name)}
+                            onClick={() => triggerDownload(resolveDl(f.download_url), f.name)}
                           >
                             <Download className="h-3.5 w-3.5" /> Save
                           </Button>
@@ -265,18 +279,18 @@ export function ToolWorkspace({ slug }: { slug: string }) {
               <div className="flex flex-col gap-2 sm:flex-row">
                 {tool.resultType === "file" &&
                   state.result.download_url &&
-                  (authLoading ? (
+                  (authLoading && !isClientResult ? (
                     <Button variant="gradient" size="lg" className="flex-1" disabled>
                       <Loader2 className="h-4 w-4 animate-spin" /> Preparing…
                     </Button>
-                  ) : canDownload ? (
+                  ) : allowDownload ? (
                     <Button
                       variant="gradient"
                       size="lg"
                       className="flex-1"
                       onClick={() =>
                         triggerDownload(
-                          downloadUrl(state.result!.download_url!),
+                          resolveDl(state.result!.download_url!),
                           state.result!.output_filename,
                         )
                       }
@@ -296,7 +310,8 @@ export function ToolWorkspace({ slug }: { slug: string }) {
               {tool.resultType === "file" &&
                 state.result.download_url &&
                 !authLoading &&
-                !canDownload && (
+                !canDownload &&
+                !isClientResult && (
                   <DownloadGate
                     pending={{
                       slug,
@@ -366,7 +381,7 @@ export function ToolWorkspace({ slug }: { slug: string }) {
                 size="xl"
                 className="w-full"
                 onClick={handleRun}
-                disabled={files.length === 0 || (loggedIn && !planReady)}
+                disabled={files.length === 0 || (loggedIn && !planReady && !clientTool)}
               >
                 <Sparkles className="h-4 w-4" />
                 {tool.actionLabel}

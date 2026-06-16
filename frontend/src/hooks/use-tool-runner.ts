@@ -2,8 +2,36 @@
 
 import { useCallback, useRef, useState } from "react";
 import { runTool } from "@/lib/api";
+import { isClientTool, runClientTool, type ClientFile } from "@/lib/client-tools";
 import type { Tool } from "@/lib/tools-registry";
 import type { JobResult } from "@/lib/types";
+
+/** Build a JobResult-shaped envelope from in-browser outputs (blob: URLs). */
+function clientResult(tool: Tool, outputs: ClientFile[]): JobResult {
+  if (outputs.length === 1) {
+    const f = outputs[0];
+    return {
+      job_id: "client",
+      tool: tool.slug,
+      status: "completed",
+      client: true,
+      download_url: URL.createObjectURL(f.blob),
+      output_filename: f.filename,
+      output_size: f.blob.size,
+    };
+  }
+  return {
+    job_id: "client",
+    tool: tool.slug,
+    status: "completed",
+    client: true,
+    files: outputs.map((f) => ({
+      name: f.filename,
+      download_url: URL.createObjectURL(f.blob),
+      size: f.blob.size,
+    })),
+  };
+}
 
 export type RunnerStage = "idle" | "uploading" | "processing" | "done" | "error";
 
@@ -37,6 +65,21 @@ export function useToolRunner(tool: Tool | undefined) {
       }
       const controller = new AbortController();
       abortRef.current = controller;
+
+      // ── In-browser path: instant, private, no upload. Falls through to the
+      // server if the browser can't handle this input/format (runClientTool
+      // returns null on any unsupported case or failure).
+      if (isClientTool(tool.slug)) {
+        setState({ stage: "processing", progress: 100, result: null, error: null });
+        const outputs = await runClientTool(tool.slug, files, options);
+        if (outputs && outputs.length > 0) {
+          const result = clientResult(tool, outputs);
+          setState({ stage: "done", progress: 100, result, error: null });
+          return result;
+        }
+        // else: fall back to the server below
+      }
+
       setState({ stage: "uploading", progress: 0, result: null, error: null });
 
       try {

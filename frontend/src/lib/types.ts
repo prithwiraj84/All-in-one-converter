@@ -66,6 +66,8 @@ export interface JobResult {
   text?: string;
   meta?: Record<string, unknown>;
   error?: string;
+  /** True when produced in-browser — download_url(s) are local blob: URLs. */
+  client?: boolean;
 }
 
 export interface ApiError {
