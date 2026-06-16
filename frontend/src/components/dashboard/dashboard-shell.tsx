@@ -20,6 +20,7 @@ import { Logo } from "@/components/shared/logo";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { SignOutButton } from "./sign-out-button";
+import { UpgradeButton } from "@/components/upgrade-button";
 import { cn } from "@/lib/utils";
 
 interface NavItem {
@@ -136,9 +137,9 @@ function UpgradeCard() {
         <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
           Unlock 2 GB files, unlimited tasks and priority processing.
         </p>
-        <Button asChild variant="gradient" size="sm" className="mt-3 w-full">
-          <Link href="/#pricing">Upgrade now</Link>
-        </Button>
+        <UpgradeButton variant="gradient" size="sm" className="mt-3 w-full">
+          Upgrade now
+        </UpgradeButton>
       </div>
     </div>
   );

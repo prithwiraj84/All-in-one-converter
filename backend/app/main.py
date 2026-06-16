@@ -18,7 +18,12 @@ from app.core.security import (
     SecurityHeadersMiddleware,
 )
 from app.core.storage import cleanup_expired, retention_loop
-from app.routers import all_routers, files as files_router, health as health_router
+from app.routers import (
+    all_routers,
+    files as files_router,
+    health as health_router,
+    payments as payments_router,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("aio")
@@ -70,9 +75,13 @@ app.add_middleware(
 
 register_exception_handlers(app)
 
-# Health + the download route stay open; every processing router enforces
-# authentication + per-user quotas via the enforce_quota dependency.
-_OPEN_ROUTERS = {id(health_router.router), id(files_router.router)}
+# Health, downloads and payments stay off the processing-quota dependency.
+# (Payments enforce auth via their own require_user dependency.)
+_OPEN_ROUTERS = {
+    id(health_router.router),
+    id(files_router.router),
+    id(payments_router.router),
+}
 for router in all_routers:
     deps = [] if id(router) in _OPEN_ROUTERS else [Depends(enforce_quota)]
     app.include_router(router, dependencies=deps)

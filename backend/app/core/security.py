@@ -114,6 +114,7 @@ class ConcurrencyLimitMiddleware(BaseHTTPMiddleware):
             request.method != "POST"
             or not path.startswith("/api/")
             or path.startswith("/api/files")
+            or path.startswith("/api/payments")
         ):
             return await call_next(request)
 

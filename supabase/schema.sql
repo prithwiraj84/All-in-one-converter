@@ -30,9 +30,13 @@ create table if not exists public.profiles (
   name        text,
   avatar_url  text,
   plan        subscription_plan not null default 'free',
+  pro_until   timestamptz,                 -- when a paid plan lapses back to free
   created_at  timestamptz not null default now(),
   updated_at  timestamptz not null default now()
 );
+
+-- For existing databases, add the column if it isn't there yet:
+alter table public.profiles add column if not exists pro_until timestamptz;
 
 -- ── files ──────────────────────────────────────────────────────────────────
 create table if not exists public.files (

@@ -5,6 +5,7 @@ import { Reveal } from "@/components/shared/reveal";
 import { SectionHeading } from "@/components/shared/section-heading";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { UpgradeButton } from "@/components/upgrade-button";
 import { PRICING_TIERS } from "@/lib/site-config";
 import { cn } from "@/lib/utils";
 
@@ -70,7 +71,7 @@ export function PricingSection() {
                           highlighted ? "text-gradient" : "text-foreground",
                         )}
                       >
-                        ${tier.price}
+                        ₹{tier.price}
                       </span>
                       <span className="mb-1.5 text-sm font-medium text-muted-foreground">
                         /{tier.period}
@@ -99,15 +100,21 @@ export function PricingSection() {
                   ))}
                 </ul>
 
-                {/* CTA */}
-                <Button
-                  asChild
-                  size="lg"
-                  variant={highlighted ? "gradient" : "outline"}
-                  className="mt-8 w-full"
-                >
-                  <Link href="/signup">{tier.cta}</Link>
-                </Button>
+                {/* CTA — the Pro tier opens checkout; others link to signup. */}
+                {tier.name === "Pro" ? (
+                  <UpgradeButton plan="pro" size="lg" variant="gradient" className="mt-8 w-full">
+                    {tier.cta}
+                  </UpgradeButton>
+                ) : (
+                  <Button
+                    asChild
+                    size="lg"
+                    variant={highlighted ? "gradient" : "outline"}
+                    className="mt-8 w-full"
+                  >
+                    <Link href="/signup">{tier.cta}</Link>
+                  </Button>
+                )}
               </div>
             );
 

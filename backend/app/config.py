@@ -45,6 +45,23 @@ class Settings(BaseSettings):
     supabase_url: str | None = None
     supabase_service_role_key: str | None = None
 
+    # Payments (Razorpay). Amounts are in the smallest currency unit (paise for
+    # INR). A successful payment grants Pro for `pro_period_days`.
+    razorpay_key_id: str | None = None
+    razorpay_key_secret: str | None = None
+    razorpay_webhook_secret: str | None = None
+    razorpay_currency: str = "INR"
+    razorpay_pro_amount: int = 74900       # ₹749
+    razorpay_business_amount: int = 249900  # ₹2,499
+    pro_period_days: int = 30
+
+    @property
+    def razorpay_enabled(self) -> bool:
+        return bool(self.razorpay_key_id and self.razorpay_key_secret)
+
+    def plan_amount(self, plan: str) -> int | None:
+        return {"pro": self.razorpay_pro_amount, "business": self.razorpay_business_amount}.get(plan)
+
     # AI tools
     # An LLM powers image captioning and (optionally) higher-quality translation.
     # Gemini (Google AI Studio) is preferred; Claude is a fallback. Without either

@@ -8,6 +8,7 @@ from app.routers import (
     health,
     image,
     ocr,
+    payments,
     pdf,
     video,
 )
@@ -25,6 +26,7 @@ all_routers = [
     video.router,
     font.router,
     ai.router,
+    payments.router,
 ]
 
 __all__ = ["all_routers"]

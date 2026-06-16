@@ -60,16 +60,54 @@ async def validate_token(token: str) -> dict | None:
 async def get_plan(user_id: str) -> str:
     try:
         url = f"{settings.supabase_url}/rest/v1/profiles"
-        params = {"id": f"eq.{user_id}", "select": "plan", "limit": "1"}
+        params = {"id": f"eq.{user_id}", "select": "plan,pro_until", "limit": "1"}
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
             resp = await client.get(url, headers=_rest_headers(), params=params)
         resp.raise_for_status()
         rows = resp.json()
-        if rows and rows[0].get("plan"):
-            return rows[0]["plan"]
+        if not rows:
+            return "free"
+        plan = rows[0].get("plan") or "free"
+        if plan != "free":
+            until = rows[0].get("pro_until")
+            if until:
+                expires = datetime.fromisoformat(until.replace("Z", "+00:00"))
+                if expires <= datetime.now(timezone.utc):
+                    # Lapsed paid plan → revert to free (self-healing, best-effort).
+                    await set_plan(user_id, "free", None)
+                    return "free"
+        return plan
     except Exception:
         logger.warning("get_plan failed; defaulting to free", exc_info=True)
     return "free"
+
+
+async def set_plan(user_id: str, plan: str, pro_until_iso: str | None) -> None:
+    """Authoritatively set a user's plan (profile + subscription). Service-role."""
+    headers = {**_rest_headers(), "Content-Type": "application/json", "Prefer": "return=minimal"}
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            await client.patch(
+                f"{settings.supabase_url}/rest/v1/profiles",
+                headers=headers,
+                params={"id": f"eq.{user_id}"},
+                json={"plan": plan, "pro_until": pro_until_iso},
+            )
+            # Upsert the subscription row (unique on user_id).
+            await client.post(
+                f"{settings.supabase_url}/rest/v1/subscriptions",
+                headers={**headers, "Prefer": "resolution=merge-duplicates,return=minimal"},
+                params={"on_conflict": "user_id"},
+                json={
+                    "user_id": user_id,
+                    "plan": plan,
+                    "status": "active" if plan != "free" else "canceled",
+                    "current_period_end": pro_until_iso,
+                },
+            )
+    except Exception:
+        logger.warning("set_plan failed", exc_info=True)
+        raise
 
 
 async def count_tasks_today(user_id: str) -> int | None:

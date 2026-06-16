@@ -81,6 +81,22 @@ def _bearer(request: Request) -> str | None:
     return None
 
 
+async def require_user(request: Request) -> dict:
+    """Dependency for endpoints that require a signed-in user (e.g. payments)."""
+    token = _bearer(request)
+    if not token or not supa.is_configured():
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Please sign in to continue.")
+    try:
+        user = await supa.validate_token(token)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(
+            status.HTTP_503_SERVICE_UNAVAILABLE, "Authentication is temporarily unavailable. Please try again."
+        ) from exc
+    if not user:
+        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Your session has expired. Please sign in again.")
+    return user
+
+
 async def enforce_quota(request: Request) -> QuotaContext:
     """FastAPI dependency: authenticate + enforce per-user quotas."""
     token = _bearer(request)

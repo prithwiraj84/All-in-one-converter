@@ -34,6 +34,7 @@ import { formatTaskQuota, RETENTION_MINUTES } from "@/lib/plans";
 import type { DashboardData, DashFile, DashConversion, DashUsage } from "@/lib/dashboard-data";
 import type { ReactNode } from "react";
 import { RefreshButton, DeleteFileButton } from "./dashboard-actions";
+import { UpgradeButton } from "@/components/upgrade-button";
 
 /* ── Shared primitives ──────────────────────────────────────────── */
 
@@ -513,11 +514,9 @@ export function SettingsView({ data }: { data: DashboardData }) {
           </div>
 
           {plan === "free" && (
-            <Button asChild variant="gradient" className="mt-5 w-full">
-              <Link href="/#pricing">
-                <Sparkles className="h-4 w-4" /> Upgrade to Pro — 2 GB storage, 1 GB files, unlimited tasks
-              </Link>
-            </Button>
+            <UpgradeButton variant="gradient" className="mt-5 w-full">
+              <Sparkles className="h-4 w-4" /> Upgrade to Pro — 2 GB storage, 1 GB files, unlimited tasks
+            </UpgradeButton>
           )}
         </CardContent>
       </Card>
