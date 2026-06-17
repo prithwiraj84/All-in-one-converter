@@ -12,6 +12,7 @@ import hmac
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
+from starlette.concurrency import run_in_threadpool
 
 from app.config import settings
 from app.core import logbuffer, supa
@@ -85,7 +86,8 @@ async def login(_: bool = Depends(require_admin)) -> dict:
 async def overview(_: bool = Depends(require_admin)) -> dict:
     return {
         "stats": await supa.admin_overview(),
-        "system": system_stats(),
+        "system": await run_in_threadpool(system_stats),
+        "supabase_system": await supa.supabase_metrics(),
         "integrations": _integrations(),
         "limits": _limits(),
     }
@@ -103,7 +105,12 @@ async def tools(_: bool = Depends(require_admin)) -> dict:
 
 @router.get("/system")
 async def system(_: bool = Depends(require_admin)) -> dict:
-    return {"system": system_stats(), "limits": _limits(), "integrations": _integrations()}
+    return {
+        "system": await run_in_threadpool(system_stats),
+        "supabase_system": await supa.supabase_metrics(),
+        "limits": _limits(),
+        "integrations": _integrations(),
+    }
 
 
 @router.get("/logs")

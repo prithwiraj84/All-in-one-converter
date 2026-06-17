@@ -20,6 +20,7 @@ import {
   Crown,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { API_BASE } from "@/lib/api";
 import { cn, formatBytes } from "@/lib/utils";
 import {
   adminFetch,
@@ -259,9 +260,23 @@ function LogsSection({ creds }: { creds: AdminCreds }) {
   const levelColor = (l: string) =>
     l === "ERROR" || l === "CRITICAL" ? "text-red-400" : l === "WARNING" ? "text-amber-400" : "text-slate-400";
 
+  async function sendTest() {
+    try {
+      await fetch(`${API_BASE}/api/admin/client-error`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: "Test log from admin panel", source: "admin-test", level: "info" }),
+      });
+      setScope("frontend");
+      setTimeout(load, 400);
+    } catch {
+      /* ignore */
+    }
+  }
+
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <div className="flex rounded-lg border border-slate-200 bg-white p-0.5 text-sm">
           {(["backend", "frontend"] as const).map((s) => (
             <button
@@ -276,11 +291,18 @@ function LogsSection({ creds }: { creds: AdminCreds }) {
         <Button variant="outline" size="sm" onClick={load} disabled={busy}>
           <RefreshCw className={cn("h-4 w-4", busy && "animate-spin")} /> Refresh
         </Button>
+        <Button variant="ghost" size="sm" onClick={sendTest}>
+          Send test log
+        </Button>
         <span className="text-xs text-slate-400">auto-refresh 8s</span>
       </div>
       <div className="h-[28rem] overflow-auto rounded-2xl border border-slate-800 bg-slate-950 p-3 font-mono text-xs leading-relaxed">
         {logs.length === 0 ? (
-          <p className="p-4 text-center text-slate-500">No {scope} logs.</p>
+          <p className="p-4 text-center text-slate-500">
+            {scope === "frontend"
+              ? "No frontend errors captured — that's good. Uncaught JS errors appear here automatically; click “Send test log” to verify the pipeline."
+              : "No backend logs yet."}
+          </p>
         ) : (
           logs.map((l, i) => (
             <div key={i} className="flex gap-2 whitespace-pre-wrap break-all py-0.5">
@@ -298,6 +320,7 @@ function LogsSection({ creds }: { creds: AdminCreds }) {
 
 function SupabaseSection({ data }: { data: OverviewResp }) {
   const s = data.stats;
+  const ss = data.supabase_system;
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -306,6 +329,34 @@ function SupabaseSection({ data }: { data: OverviewResp }) {
         <Stat label="files" value={fmtNum(s.files)} />
         <Stat label="active storage" value={s.storage_used == null ? "—" : formatBytes(s.storage_used)} />
       </div>
+
+      {ss?.available ? (
+        <div>
+          <p className="mb-3 text-sm font-semibold text-slate-700">Database instance (live)</p>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+            <Gauge label="CPU (load)" pct={ss.cpu_percent} detail={`load ${ss.load1 ?? "—"} · ${ss.cpus ?? "?"} vCPU`} icon={Cpu} />
+            <Gauge
+              label="Memory"
+              pct={ss.memory_percent}
+              detail={ss.memory_used && ss.memory_total ? `${formatBytes(ss.memory_used)} / ${formatBytes(ss.memory_total)}` : "—"}
+              icon={MemoryStick}
+            />
+            <Gauge
+              label="Disk"
+              pct={ss.disk_percent}
+              detail={ss.disk_used && ss.disk_total ? `${formatBytes(ss.disk_used)} / ${formatBytes(ss.disk_total)}` : "—"}
+              icon={HardDrive}
+            />
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
+            <Stat label="Database size" value={ss.db_size ? formatBytes(ss.db_size) : "—"} />
+          </div>
+        </div>
+      ) : (
+        <p className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+          Live Supabase instance metrics unavailable (check the service-role key / project).
+        </p>
+      )}
       <Card title="Plan distribution">
         <div className="space-y-2.5">
           {Object.entries(s.plans).map(([plan, n]) => {
@@ -341,8 +392,10 @@ function VercelSection({ creds }: { creds: AdminCreds }) {
     <div className="space-y-4">
       <Card title="Frontend (Vercel)">
         <p className="text-sm text-slate-600">
-          Deep Vercel metrics & build/runtime logs live in the Vercel dashboard (their API gates analytics behind a token/plan).
-          What we capture here are <strong>client-side JavaScript errors</strong> reported by the app in real time.
+          Vercel hosts the frontend <strong>serverlessly</strong> — there is no fixed server, so there is no persistent
+          CPU / RAM / disk to report (functions spin up per request and shut down). Bandwidth & invocation usage live in
+          the Vercel dashboard; what this panel captures in real time are <strong>client-side JavaScript errors</strong>
+          (see the “Logs → frontend” tab).
         </p>
         <div className="mt-4 flex items-center gap-4">
           <Stat label="Captured client errors" value={count == null ? "—" : fmtNum(count)} />

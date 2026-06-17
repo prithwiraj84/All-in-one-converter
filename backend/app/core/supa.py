@@ -149,6 +149,61 @@ async def storage_used(user_id: str) -> int | None:
         return None
 
 
+async def supabase_metrics() -> dict | None:
+    """Live Supabase project stats from its privileged Prometheus endpoint
+    (Basic auth with the service-role key). Returns CPU(load)/RAM/disk/db size."""
+    if not is_configured():
+        return None
+    url = f"{settings.supabase_url}/customer/v1/privileged/metrics"
+    try:
+        async with httpx.AsyncClient(timeout=15) as client:
+            resp = await client.get(url, auth=("service_role", settings.supabase_service_role_key or ""))
+        if resp.status_code != 200:
+            return None
+        lines = resp.text.splitlines()
+    except Exception:  # noqa: BLE001
+        logger.warning("supabase_metrics failed", exc_info=True)
+        return None
+
+    def value(metric: str, label: str | None = None) -> float | None:
+        for line in lines:
+            if not (line.startswith(metric + "{") or line.startswith(metric + " ")):
+                continue
+            if label and label not in line:
+                continue
+            try:
+                return float(line.rsplit(" ", 1)[1])
+            except (ValueError, IndexError):
+                continue
+        return None
+
+    def occurrences(metric: str) -> int:
+        return sum(1 for line in lines if line.startswith(metric + "{"))
+
+    mem_total = value("node_memory_MemTotal_bytes")
+    mem_avail = value("node_memory_MemAvailable_bytes")
+    mem_used = mem_total - mem_avail if (mem_total and mem_avail is not None) else None
+    fs_total = value("node_filesystem_size_bytes", 'mountpoint="/data"')
+    fs_avail = value("node_filesystem_avail_bytes", 'mountpoint="/data"')
+    fs_used = fs_total - fs_avail if (fs_total and fs_avail is not None) else None
+    load1 = value("node_load1")
+    cpus = occurrences("node_cpu_online") or 1
+
+    return {
+        "available": True,
+        "cpus": cpus,
+        "load1": load1,
+        "cpu_percent": round(min(100.0, load1 / cpus * 100), 1) if load1 is not None else None,
+        "memory_used": mem_used,
+        "memory_total": mem_total,
+        "memory_percent": round(mem_used / mem_total * 100, 1) if (mem_used and mem_total) else None,
+        "disk_used": fs_used,
+        "disk_total": fs_total,
+        "disk_percent": round(fs_used / fs_total * 100, 1) if (fs_used and fs_total) else None,
+        "db_size": value("pg_database_size_bytes"),
+    }
+
+
 async def _count(client: httpx.AsyncClient, table: str, query: str = "") -> int | None:
     """Exact row count via PostgREST's Content-Range header."""
     try:

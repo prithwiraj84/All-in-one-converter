@@ -21,6 +21,20 @@ export interface SystemStats {
   threads?: number;
 }
 
+export interface SupaSystem {
+  available: boolean;
+  cpus?: number;
+  load1?: number | null;
+  cpu_percent?: number | null;
+  memory_used?: number | null;
+  memory_total?: number | null;
+  memory_percent?: number | null;
+  disk_used?: number | null;
+  disk_total?: number | null;
+  disk_percent?: number | null;
+  db_size?: number | null;
+}
+
 export interface OverviewResp {
   stats: {
     users: number | null;
@@ -31,6 +45,7 @@ export interface OverviewResp {
     storage_used: number | null;
   };
   system: SystemStats;
+  supabase_system: SupaSystem | null;
   integrations: Record<string, boolean | string>;
   limits: Record<string, number | string>;
 }

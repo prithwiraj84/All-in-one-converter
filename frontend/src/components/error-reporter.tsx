@@ -38,11 +38,26 @@ export function ErrorReporter() {
       report(typeof r === "string" ? r : r?.message || "Unhandled promise rejection", "promise");
     };
 
+    // Also surface errors logged via console.error (React errors, handled catches).
+    const origError = console.error.bind(console);
+    console.error = (...args: unknown[]) => {
+      origError(...args);
+      try {
+        const msg = args
+          .map((a) => (typeof a === "string" ? a : (a as { message?: string })?.message ?? String(a)))
+          .join(" ");
+        report(msg, "console.error");
+      } catch {
+        /* ignore */
+      }
+    };
+
     window.addEventListener("error", onError);
     window.addEventListener("unhandledrejection", onRejection);
     return () => {
       window.removeEventListener("error", onError);
       window.removeEventListener("unhandledrejection", onRejection);
+      console.error = origError;
     };
   }, []);
 
