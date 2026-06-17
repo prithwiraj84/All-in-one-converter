@@ -149,6 +149,114 @@ async def storage_used(user_id: str) -> int | None:
         return None
 
 
+async def _count(client: httpx.AsyncClient, table: str, query: str = "") -> int | None:
+    """Exact row count via PostgREST's Content-Range header."""
+    try:
+        url = f"{settings.supabase_url}/rest/v1/{table}?select=id{('&' + query) if query else ''}"
+        headers = {**_rest_headers(), "Prefer": "count=exact", "Range": "0-0"}
+        resp = await client.get(url, headers=headers)
+        cr = resp.headers.get("content-range", "")
+        if "/" in cr:
+            total = cr.split("/")[-1]
+            return int(total) if total.isdigit() else None
+    except Exception:  # noqa: BLE001
+        logger.warning("count(%s) failed", table, exc_info=True)
+    return None
+
+
+async def admin_overview() -> dict:
+    """Top-line counts for the admin overview (best-effort; partial on error)."""
+    out: dict = {"users": None, "plans": {}, "conversions": None, "conversions_today": None,
+                 "files": None, "storage_used": None}
+    if not is_configured():
+        return out
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            today = start_of_utc_day_iso()
+            out["users"] = await _count(client, "profiles")
+            for plan in ("free", "pro", "business"):
+                out["plans"][plan] = await _count(client, "profiles", f"plan=eq.{plan}")
+            out["conversions"] = await _count(client, "conversions")
+            out["conversions_today"] = await _count(client, "conversions", f"created_at=gte.{today}")
+            out["files"] = await _count(client, "files")
+            # Active storage (sum of non-expired file sizes), capped fetch.
+            resp = await client.get(
+                f"{settings.supabase_url}/rest/v1/files?select=size,expires_at&limit=20000",
+                headers=_rest_headers(),
+            )
+            now = datetime.now(timezone.utc)
+            total = 0
+            for row in resp.json():
+                exp = row.get("expires_at")
+                if exp and datetime.fromisoformat(exp.replace("Z", "+00:00")) <= now:
+                    continue
+                total += int(row.get("size") or 0)
+            out["storage_used"] = total
+    except Exception:  # noqa: BLE001
+        logger.warning("admin_overview failed", exc_info=True)
+    return out
+
+
+async def admin_users(limit: int = 200) -> list[dict]:
+    """Recent users with their conversion counts."""
+    if not is_configured():
+        return []
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            pres = await client.get(
+                f"{settings.supabase_url}/rest/v1/profiles"
+                f"?select=id,email,name,plan,pro_until,created_at&order=created_at.desc&limit={limit}",
+                headers=_rest_headers(),
+            )
+            users = pres.json()
+            cres = await client.get(
+                f"{settings.supabase_url}/rest/v1/conversions?select=user_id,created_at&limit=20000",
+                headers=_rest_headers(),
+            )
+            counts: dict[str, int] = {}
+            last: dict[str, str] = {}
+            for row in cres.json():
+                uid = row.get("user_id")
+                if not uid:
+                    continue
+                counts[uid] = counts.get(uid, 0) + 1
+                ts = row.get("created_at")
+                if ts and ts > last.get(uid, ""):
+                    last[uid] = ts
+            for u in users:
+                u["conversions"] = counts.get(u["id"], 0)
+                u["last_active"] = last.get(u["id"])
+            return users
+    except Exception:  # noqa: BLE001
+        logger.warning("admin_users failed", exc_info=True)
+        return []
+
+
+async def admin_tool_usage(limit_rows: int = 20000) -> list[dict]:
+    """Usage count per tool (over the most recent `limit_rows` conversions)."""
+    if not is_configured():
+        return []
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            resp = await client.get(
+                f"{settings.supabase_url}/rest/v1/conversions"
+                f"?select=tool&order=created_at.desc&limit={limit_rows}",
+                headers=_rest_headers(),
+            )
+            counts: dict[str, int] = {}
+            for row in resp.json():
+                t = row.get("tool") or "unknown"
+                counts[t] = counts.get(t, 0) + 1
+            return sorted(
+                ({"tool": k, "uses": v} for k, v in counts.items()),
+                key=lambda x: x["uses"],
+                reverse=True,
+            )
+    except Exception:  # noqa: BLE001
+        logger.warning("admin_tool_usage failed", exc_info=True)
+        return []
+
+
 async def record_conversion(
     user_id: str,
     *,

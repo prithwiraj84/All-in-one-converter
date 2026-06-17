@@ -29,6 +29,7 @@ brotli==1.1.0
 # ── Misc / integrations ────────────────────────────────────────
 httpx==0.28.1
 python-dotenv==1.0.1
+psutil==6.1.1            # admin panel system stats (CPU/RAM/disk)
 
 # ── AI tools ───────────────────────────────────────────────────
 # All CPU-friendly; heavy libs are imported lazily so the app boots without them.

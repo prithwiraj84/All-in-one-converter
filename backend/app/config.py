@@ -30,6 +30,15 @@ class Settings(BaseSettings):
     rate_limit_per_minute: int = 60
     app_secret_key: str = "change-me-in-production"
 
+    # Admin panel — reachable at /admin/<ADMIN_PATH_TOKEN> and gated by a
+    # password. Both must be set to enable the panel; otherwise it's disabled.
+    admin_path_token: str | None = None
+    admin_password: str | None = None
+
+    @property
+    def admin_enabled(self) -> bool:
+        return bool(self.admin_path_token and self.admin_password)
+
     # Concurrency / backpressure — caps simultaneous jobs so a small instance
     # can't be overwhelmed (OOM) under load. Heavy tools (documents, video, AI
     # models) get a tighter cap. Requests wait up to the timeout for a free slot,

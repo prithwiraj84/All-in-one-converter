@@ -18,7 +18,9 @@ from app.core.security import (
     SecurityHeadersMiddleware,
 )
 from app.core.storage import cleanup_expired, retention_loop
+from app.core import logbuffer
 from app.routers import (
+    admin as admin_router,
     all_routers,
     files as files_router,
     health as health_router,
@@ -31,7 +33,8 @@ logger = logging.getLogger("aio")
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    # Startup: purge anything stale, then run periodic cleanup.
+    # Startup: capture logs for the admin panel, purge stale files, run cleanup.
+    logbuffer.install()
     cleanup_expired()
     task = asyncio.create_task(retention_loop())
     logger.info("All in one converter API v%s started (env=%s)", __version__, settings.environment)
@@ -81,6 +84,7 @@ _OPEN_ROUTERS = {
     id(health_router.router),
     id(files_router.router),
     id(payments_router.router),
+    id(admin_router.router),
 }
 for router in all_routers:
     deps = [] if id(router) in _OPEN_ROUTERS else [Depends(enforce_quota)]

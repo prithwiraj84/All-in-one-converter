@@ -1,4 +1,5 @@
 from app.routers import (
+    admin,
     ai,
     archive,
     audio,
@@ -27,6 +28,7 @@ all_routers = [
     font.router,
     ai.router,
     payments.router,
+    admin.router,
 ]
 
 __all__ = ["all_routers"]

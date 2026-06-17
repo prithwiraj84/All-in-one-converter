@@ -115,6 +115,7 @@ class ConcurrencyLimitMiddleware(BaseHTTPMiddleware):
             or not path.startswith("/api/")
             or path.startswith("/api/files")
             or path.startswith("/api/payments")
+            or path.startswith("/api/admin")
         ):
             return await call_next(request)
 
