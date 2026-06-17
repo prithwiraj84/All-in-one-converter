@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useSubscription } from "@/hooks/use-subscription";
 import { subscriptionStatus } from "@/lib/subscription";
 import { useConsent } from "@/lib/consent";
@@ -26,7 +26,9 @@ export function AdUnit({ slot, format = "auto", className, minHeight = 120 }: Ad
   const { plan, proUntil } = useSubscription();
   const isPaid = subscriptionStatus(plan, proUntil).isPaid;
   const consent = useConsent();
+  const insRef = useRef<HTMLModElement>(null);
   const pushed = useRef(false);
+  const [unfilled, setUnfilled] = useState(false);
 
   // With Google's CMP, ad-serving itself respects consent — so we just render.
   // Otherwise gate on our own banner's "accepted".
@@ -39,16 +41,28 @@ export function AdUnit({ slot, format = "auto", className, minHeight = 120 }: Ad
       ((window as unknown as { adsbygoogle?: unknown[] }).adsbygoogle ||= []).push({});
       pushed.current = true;
     } catch {
-      /* AdSense not ready yet — it'll process the queued push on load */
+      return; // AdSense not ready — it'll process the queued push on load
     }
+    // Collapse the unit (hide the "Advertisement" label + space) if Google
+    // returns no ad, so we never show an empty labelled box.
+    const el = insRef.current;
+    if (!el) return;
+    const check = () => {
+      if (el.getAttribute("data-ad-status") === "unfilled") setUnfilled(true);
+    };
+    check();
+    const obs = new MutationObserver(check);
+    obs.observe(el, { attributes: true, attributeFilter: ["data-ad-status"] });
+    return () => obs.disconnect();
   }, [show]);
 
-  if (!show) return null;
+  if (!show || unfilled) return null;
 
   return (
     <div className={cn("my-6 w-full text-center", className)}>
       <p className="mb-1 text-[10px] uppercase tracking-wider text-muted-foreground/60">Advertisement</p>
       <ins
+        ref={insRef}
         className="adsbygoogle block"
         style={{ display: "block", minHeight }}
         data-ad-client={ADSENSE_CLIENT}
