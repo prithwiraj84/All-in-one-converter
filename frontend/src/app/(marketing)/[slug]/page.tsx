@@ -16,6 +16,7 @@ import { Reveal } from "@/components/shared/reveal";
 import { Badge } from "@/components/ui/badge";
 import { ToolWorkspace } from "@/components/tools/tool-workspace";
 import { ToolCard } from "@/components/tools/tool-card";
+import { AdUnit } from "@/components/ads/ad-unit";
 import {
   Accordion,
   AccordionContent,
@@ -189,6 +190,11 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
           </div>
         </Container>
       </section>
+
+      {/* In-content ad (free/consented users only) */}
+      <Container size="wide" className="pt-10">
+        <AdUnit minHeight={110} />
+      </Container>
 
       {/* FAQ */}
       <section className="py-16">

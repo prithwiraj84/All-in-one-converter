@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Fragment } from "react";
 import { Sparkles } from "lucide-react";
 import { TOOLS, CATEGORIES, toolsByCategory } from "@/lib/tools-registry";
 import { absoluteUrl } from "@/lib/utils";
@@ -7,6 +8,7 @@ import { Container } from "@/components/shared/container";
 import { Reveal } from "@/components/shared/reveal";
 import { Badge } from "@/components/ui/badge";
 import { ToolCard } from "@/components/tools/tool-card";
+import { AdUnit } from "@/components/ads/ad-unit";
 
 export const metadata: Metadata = {
   title: "All Tools — 100+ Free File Tools",
@@ -77,13 +79,13 @@ export default async function ToolsIndexPage() {
       </section>
 
       {/* ── Category sections ───────────────────────────────── */}
-      {activeCategories.map((category) => {
+      {activeCategories.map((category, idx) => {
         const tools = toolsByCategory(category.key);
         const CategoryIcon = category.icon;
 
         return (
+          <Fragment key={category.key}>
           <section
-            key={category.key}
             id={category.key}
             className="scroll-mt-24 border-t border-border/60 py-16 first-of-type:border-t-0 sm:py-20"
           >
@@ -116,6 +118,12 @@ export default async function ToolsIndexPage() {
               </div>
             </Container>
           </section>
+          {idx === 1 && (
+            <Container size="wide" className="pb-2">
+              <AdUnit minHeight={110} />
+            </Container>
+          )}
+          </Fragment>
         );
       })}
     </>

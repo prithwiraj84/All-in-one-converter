@@ -33,6 +33,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Loader } from "@/components/shared/loader";
 import { FileDropzone } from "./file-dropzone";
 import { DownloadGate } from "./download-gate";
+import { AdUnit } from "@/components/ads/ad-unit";
 import { ToolOptionsForm, defaultOptionValues, type OptionValues } from "./tool-options-form";
 
 export function ToolWorkspace({ slug }: { slug: string }) {
@@ -306,6 +307,9 @@ export function ToolWorkspace({ slug }: { slug: string }) {
                   <RotateCcw className="h-4 w-4" /> Convert another
                 </Button>
               </div>
+
+              {/* Ad shown to free/consented users only (Pro users see nothing). */}
+              <AdUnit minHeight={100} />
 
               {/* Free to try, sign in to download */}
               {tool.resultType === "file" &&

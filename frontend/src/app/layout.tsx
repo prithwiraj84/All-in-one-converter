@@ -6,6 +6,9 @@ import { ThemeProvider } from "@/providers/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { NavProgress } from "@/components/shared/nav-progress";
 import { ErrorReporter } from "@/components/error-reporter";
+import { ConsentBanner } from "@/components/ads/consent-banner";
+import { AdsenseLoader } from "@/components/ads/adsense-loader";
+import { FundingChoices } from "@/components/ads/funding-choices";
 import "./globals.css";
 
 const inter = Inter({
@@ -82,8 +85,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <QueryProvider>
             <NavProgress />
             <ErrorReporter />
+            <FundingChoices />
+            <AdsenseLoader />
             {children}
             <Toaster />
+            <ConsentBanner />
           </QueryProvider>
         </ThemeProvider>
       </body>
