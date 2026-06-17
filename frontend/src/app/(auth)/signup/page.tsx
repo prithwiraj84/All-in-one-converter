@@ -194,7 +194,15 @@ export default function Signup() {
         </Button>
 
         <p className="text-center text-xs text-muted-foreground">
-          By signing up you agree to our Terms.
+          By signing up you agree to our{" "}
+          <Link href="/terms" className="underline underline-offset-2 hover:text-foreground">
+            Terms
+          </Link>{" "}
+          and{" "}
+          <Link href="/privacy" className="underline underline-offset-2 hover:text-foreground">
+            Privacy Policy
+          </Link>
+          .
         </p>
       </form>
 

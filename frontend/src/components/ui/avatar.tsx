@@ -25,6 +25,9 @@ const AvatarImage = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <AvatarPrimitive.Image
     ref={ref}
+    // Google/GitHub avatar CDNs reject requests that send a referrer (our pages
+    // set a strict referrer policy), so suppress it for the image to load.
+    referrerPolicy="no-referrer"
     className={cn("aspect-square h-full w-full object-cover", className)}
     {...props}
   />

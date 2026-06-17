@@ -9,7 +9,9 @@ export const SITE = {
   url: process.env.NEXT_PUBLIC_SITE_URL || "https://all-in-one-converter.devprithwiraj.in",
   ogImage: "/og.png",
   twitter: "@aioconverter",
-  email: "support@aioconverter.app",
+  // Public contact (used in the footer + legal pages). Swap for a domain alias
+  // (e.g. support@your-domain) whenever you have one set up.
+  email: "digital.toshiconsulting@gmail.com",
 } as const;
 
 /**
@@ -192,10 +194,10 @@ export const FOOTER_SECTIONS = [
   {
     title: "Company",
     links: [
-      { label: "About", href: "/#" },
-      { label: "Privacy", href: "/#" },
-      { label: "Terms", href: "/#" },
-      { label: "Contact", href: "/#" },
+      { label: "About", href: "/#how-it-works" },
+      { label: "Privacy", href: "/privacy" },
+      { label: "Terms", href: "/terms" },
+      { label: "Contact", href: "mailto:prithwirajdas84@gmail.com" },
     ],
   },
 ] as const;
