@@ -234,18 +234,40 @@ function SystemSection({ data }: { data: OverviewResp }) {
   );
 }
 
+const LOG_SCOPES = [
+  { key: "backend", label: "Backend" },
+  { key: "frontend", label: "Frontend" },
+  { key: "hf-run", label: "HF Container" },
+  { key: "hf-build", label: "HF Build" },
+] as const;
+type LogScope = (typeof LOG_SCOPES)[number]["key"];
+
 function LogsSection({ creds }: { creds: AdminCreds }) {
-  const [scope, setScope] = React.useState<"backend" | "frontend">("backend");
+  const [scope, setScope] = React.useState<LogScope>("backend");
   const [logs, setLogs] = React.useState<LogEntry[]>([]);
+  const [note, setNote] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
+  const isHf = scope === "hf-run" || scope === "hf-build";
 
   const load = React.useCallback(async () => {
     setBusy(true);
+    setNote(null);
     try {
-      const r = await adminFetch<{ logs: LogEntry[] }>(`/logs?scope=${scope}&limit=400`, creds);
-      setLogs(r.logs);
-    } catch {
-      /* ignore */
+      if (scope === "hf-run" || scope === "hf-build") {
+        const kind = scope === "hf-build" ? "build" : "run";
+        const r = await adminFetch<{ configured: boolean; error?: string; logs: LogEntry[] }>(
+          `/hf-logs?kind=${kind}`,
+          creds,
+        );
+        if (!r.configured) setNote("Set HF_TOKEN, HF_USERNAME and HF_SPACE on the backend to view HF logs.");
+        else if (r.error) setNote(r.error);
+        setLogs(r.logs ?? []);
+      } else {
+        const r = await adminFetch<{ logs: LogEntry[] }>(`/logs?scope=${scope}&limit=400`, creds);
+        setLogs(r.logs);
+      }
+    } catch (e) {
+      setNote((e as Error).message);
     } finally {
       setBusy(false);
     }
@@ -253,9 +275,10 @@ function LogsSection({ creds }: { creds: AdminCreds }) {
 
   React.useEffect(() => {
     load();
+    if (isHf) return; // HF logs are a slow streaming fetch — manual refresh only
     const id = window.setInterval(load, 8000);
     return () => window.clearInterval(id);
-  }, [load]);
+  }, [load, isHf]);
 
   const levelColor = (l: string) =>
     l === "ERROR" || l === "CRITICAL" ? "text-red-400" : l === "WARNING" ? "text-amber-400" : "text-slate-400";
@@ -278,13 +301,16 @@ function LogsSection({ creds }: { creds: AdminCreds }) {
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex rounded-lg border border-slate-200 bg-white p-0.5 text-sm">
-          {(["backend", "frontend"] as const).map((s) => (
+          {LOG_SCOPES.map((s) => (
             <button
-              key={s}
-              onClick={() => setScope(s)}
-              className={cn("rounded-md px-3 py-1 capitalize", scope === s ? "bg-slate-900 text-white" : "text-slate-600")}
+              key={s.key}
+              onClick={() => setScope(s.key)}
+              className={cn(
+                "rounded-md px-2.5 py-1 text-xs sm:text-sm",
+                scope === s.key ? "bg-slate-900 text-white" : "text-slate-600",
+              )}
             >
-              {s}
+              {s.label}
             </button>
           ))}
         </div>
@@ -294,14 +320,19 @@ function LogsSection({ creds }: { creds: AdminCreds }) {
         <Button variant="ghost" size="sm" onClick={sendTest}>
           Send test log
         </Button>
-        <span className="text-xs text-slate-400">auto-refresh 8s</span>
+        <span className="text-xs text-slate-400">{isHf ? "manual · streamed from HF" : "auto-refresh 8s"}</span>
       </div>
+      {note && <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">{note}</p>}
       <div className="h-[28rem] overflow-auto rounded-2xl border border-slate-800 bg-slate-950 p-3 font-mono text-xs leading-relaxed">
         {logs.length === 0 ? (
           <p className="p-4 text-center text-slate-500">
             {scope === "frontend"
               ? "No frontend errors captured — that's good. Uncaught JS errors appear here automatically; click “Send test log” to verify the pipeline."
-              : "No backend logs yet."}
+              : isHf
+                ? busy
+                  ? "Fetching from Hugging Face…"
+                  : "No HF logs returned."
+                : "No backend logs yet."}
           </p>
         ) : (
           logs.map((l, i) => (

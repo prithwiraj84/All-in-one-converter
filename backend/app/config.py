@@ -39,6 +39,12 @@ class Settings(BaseSettings):
     def admin_enabled(self) -> bool:
         return bool(self.admin_path_token and self.admin_password)
 
+    # Hugging Face Space logs in the admin panel (container 'run' + Docker
+    # 'build'). Needs a read token + the Space owner/name. Optional.
+    hf_token: str | None = None
+    hf_username: str | None = None
+    hf_space: str | None = None
+
     # Concurrency / backpressure — caps simultaneous jobs so a small instance
     # can't be overwhelmed (OOM) under load. Heavy tools (documents, video, AI
     # models) get a tighter cap. Requests wait up to the timeout for a free slot,

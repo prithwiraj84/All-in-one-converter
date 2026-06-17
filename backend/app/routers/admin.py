@@ -121,3 +121,10 @@ async def logs(
     limit: int = 300,
 ) -> dict:
     return {"logs": logbuffer.recent_logs(limit=min(max(limit, 1), 600), level=level, scope=scope)}
+
+
+@router.get("/hf-logs")
+async def hf_logs(_: bool = Depends(require_admin), kind: str = "run") -> dict:
+    from app.core import hf
+
+    return await hf.space_logs(kind=kind)
