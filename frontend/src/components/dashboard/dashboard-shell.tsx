@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { SignOutButton } from "./sign-out-button";
 import { UpgradeButton } from "@/components/upgrade-button";
+import { ProBadge } from "@/components/pro-badge";
 import { useSubscription } from "@/hooks/use-subscription";
 import { subscriptionStatus } from "@/lib/subscription";
 import { cn } from "@/lib/utils";
@@ -204,10 +205,13 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
   const initials = getInitials(user);
 
   const userAvatar = (
-    <Avatar className="h-9 w-9 ring-2 ring-white shadow-sm">
-      {user.avatar ? <AvatarImage src={user.avatar} alt={user.name || user.email || "User"} /> : null}
-      <AvatarFallback>{initials}</AvatarFallback>
-    </Avatar>
+    <div className="flex items-center gap-2">
+      <Avatar className="h-9 w-9 ring-2 ring-white shadow-sm">
+        {user.avatar ? <AvatarImage src={user.avatar} alt={user.name || user.email || "User"} /> : null}
+        <AvatarFallback>{initials}</AvatarFallback>
+      </Avatar>
+      <ProBadge />
+    </div>
   );
 
   const newConversionButton = (

@@ -151,6 +151,24 @@ const config: Config = {
           "0%, 100%": { transform: "scale(0.55)", opacity: "0.3" },
           "50%": { transform: "scale(1)", opacity: "1" },
         },
+        // Heartbeat — double-thump pulse for the "Pro" heart.
+        heartbeat: {
+          "0%, 100%": { transform: "scale(1)" },
+          "15%": { transform: "scale(1.28)" },
+          "30%": { transform: "scale(1)" },
+          "45%": { transform: "scale(1.18)" },
+          "60%": { transform: "scale(1)" },
+        },
+        // Pulsing glow for the Pro badge.
+        "glow-pulse": {
+          "0%, 100%": { boxShadow: "0 0 8px -1px rgba(124,58,237,0.55)" },
+          "50%": { boxShadow: "0 0 16px 1px rgba(124,58,237,0.95)" },
+        },
+        // Sweeping light streak across the Pro badge (premium "shine").
+        shine: {
+          "0%": { transform: "translateX(-120%)" },
+          "55%, 100%": { transform: "translateX(120%)" },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -167,6 +185,9 @@ const config: Config = {
         "spin-reverse": "spin-reverse 2.4s linear infinite",
         wave: "wave 2.5s ease-in-out infinite",
         twinkle: "twinkle 1.8s ease-in-out infinite",
+        heartbeat: "heartbeat 1.6s ease-in-out infinite",
+        "glow-pulse": "glow-pulse 2s ease-in-out infinite",
+        shine: "shine 4s ease-in-out infinite",
       },
     },
   },

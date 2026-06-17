@@ -6,6 +6,7 @@ import { LayoutDashboard, LogOut, Settings, User as UserIcon } from "lucide-reac
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ProBadge } from "@/components/pro-badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,12 +36,15 @@ export function UserMenu({ user }: { user: User }) {
 
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger className="rounded-full outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring">
-        <Avatar className="h-9 w-9 ring-2 ring-border transition hover:ring-primary/40">
-          {avatar && <AvatarImage src={avatar} alt={name} />}
-          <AvatarFallback>{initials}</AvatarFallback>
-        </Avatar>
-      </DropdownMenuTrigger>
+      <div className="flex items-center gap-2">
+        <DropdownMenuTrigger className="rounded-full outline-none ring-offset-background focus-visible:ring-2 focus-visible:ring-ring">
+          <Avatar className="h-9 w-9 ring-2 ring-border transition hover:ring-primary/40">
+            {avatar && <AvatarImage src={avatar} alt={name} />}
+            <AvatarFallback>{initials}</AvatarFallback>
+          </Avatar>
+        </DropdownMenuTrigger>
+        <ProBadge />
+      </div>
       <DropdownMenuContent align="end" className="w-56">
         <DropdownMenuLabel className="flex flex-col gap-0.5">
           <span className="text-sm font-medium text-foreground">{name}</span>
