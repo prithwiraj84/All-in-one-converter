@@ -9,9 +9,11 @@ from app.routers import (
     health,
     image,
     jobs,
+    keys,
     ocr,
     payments,
     pdf,
+    teams,
     video,
 )
 
@@ -30,6 +32,8 @@ all_routers = [
     font.router,
     ai.router,
     payments.router,
+    keys.router,
+    teams.router,
     admin.router,
 ]
 

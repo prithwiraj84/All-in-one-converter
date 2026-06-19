@@ -103,6 +103,28 @@ async def require_user(request: Request) -> dict:
     return user
 
 
+async def require_business(request: Request) -> dict:
+    """Signed-in user whose *effective* plan is Business (own plan or via a team).
+    Used to gate REST API key management — team members inherit access too."""
+    user = await require_user(request)
+    if await supa.effective_plan(user["id"], user.get("email")) != "business":
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "This feature is available on the Business plan only."
+        )
+    return user
+
+
+async def require_business_owner(request: Request) -> dict:
+    """Signed-in user with their OWN Business subscription — only an owner can
+    create and manage a team workspace (members can't spin up their own)."""
+    user = await require_user(request)
+    if await supa.get_plan(user["id"]) != "business":
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN, "Only a Business plan owner can manage a team."
+        )
+    return user
+
+
 async def enforce_quota(request: Request) -> QuotaContext:
     """FastAPI dependency: authenticate + enforce per-user quotas."""
     token = _bearer(request)
@@ -116,23 +138,39 @@ async def enforce_quota(request: Request) -> QuotaContext:
         _quota_ctx.set(ctx)
         return ctx
 
-    # Authenticate. Fail open on outage; only reject a definitively invalid token.
-    try:
-        user = await supa.validate_token(token)
-    except (httpx.HTTPError, Exception):  # noqa: BLE001 - never 500 on auth
-        logger.warning("token validation unavailable; allowing as anonymous", exc_info=True)
-        ctx = QuotaContext(None, "free", plan_limits("free"), tool, pid)
-        _quota_ctx.set(ctx)
-        return ctx
+    # ── Auth path A: REST API key ("Authorization: Bearer aio_live_…") ──
+    # Business-only. Resolve the key to its owner; their effective plan (own
+    # subscription, or membership of a Business team) must be Business.
+    if token.startswith(supa.API_KEY_PREFIX):
+        key = await supa.validate_api_key(token)
+        if not key:
+            raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or revoked API key.")
+        user_id = key["user_id"]
+        plan = await supa.effective_plan(user_id)
+        if plan != "business":
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN,
+                "REST API access is available on the Business plan only.",
+            )
+    else:
+        # ── Auth path B: Supabase access token (the web app) ──
+        # Fail open on outage; only reject a definitively invalid token.
+        try:
+            user = await supa.validate_token(token)
+        except (httpx.HTTPError, Exception):  # noqa: BLE001 - never 500 on auth
+            logger.warning("token validation unavailable; allowing as anonymous", exc_info=True)
+            ctx = QuotaContext(None, "free", plan_limits("free"), tool, pid)
+            _quota_ctx.set(ctx)
+            return ctx
+        if user is None:
+            raise HTTPException(
+                status.HTTP_401_UNAUTHORIZED,
+                "Your session is invalid or has expired. Please sign in again.",
+            )
+        user_id = user["id"]
+        # Effective plan upgrades a Free user who belongs to a Business team.
+        plan = await supa.effective_plan(user_id, user.get("email"))
 
-    if user is None:
-        raise HTTPException(
-            status.HTTP_401_UNAUTHORIZED,
-            "Your session is invalid or has expired. Please sign in again.",
-        )
-
-    user_id = user["id"]
-    plan = await supa.get_plan(user_id)
     limits = plan_limits(plan)
     ctx = QuotaContext(user_id, plan, limits, tool, pid)
     _quota_ctx.set(ctx)

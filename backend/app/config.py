@@ -63,6 +63,20 @@ class Settings(BaseSettings):
     supabase_url: str | None = None
     supabase_service_role_key: str | None = None
 
+    # Transactional email (team invitations). Tries Resend, then SMTP, then
+    # falls back to Supabase's invite email. All optional — invites still work
+    # without email (the member gets access on sign-in), it just won't notify.
+    app_url: str = "https://all-in-one-converter.devprithwiraj.in"  # frontend, for links
+    email_from: str = "All in one converter <onboarding@resend.dev>"
+    resend_api_key: str | None = None
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_user: str | None = None
+    smtp_password: str | None = None
+    # Email a renewal reminder this many days before a paid plan lapses.
+    expiry_reminder_days: int = 3
+    reminder_interval_hours: int = 12
+
     # Payments (Razorpay). Amounts are in the smallest currency unit (paise for
     # INR). A successful payment grants Pro for `pro_period_days`.
     razorpay_key_id: str | None = None

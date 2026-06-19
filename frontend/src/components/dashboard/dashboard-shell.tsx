@@ -14,6 +14,8 @@ import {
   Plus,
   Menu,
   X,
+  KeyRound,
+  Users,
   type LucideIcon,
 } from "lucide-react";
 import { Logo } from "@/components/shared/logo";
@@ -41,6 +43,17 @@ const NAV_ITEMS: NavItem[] = [
   { label: "All Tools", href: "/tools", icon: Wand2 },
   { label: "Settings", href: "/dashboard?tab=settings", icon: Settings },
 ];
+
+// Business-only sections, inserted after "Conversions" for paid Business users.
+const BUSINESS_NAV: NavItem[] = [
+  { label: "API", href: "/dashboard?tab=api", icon: KeyRound },
+  { label: "Team", href: "/dashboard?tab=team", icon: Users },
+];
+
+function navItemsFor(plan: string): NavItem[] {
+  if (plan !== "business") return NAV_ITEMS;
+  return [...NAV_ITEMS.slice(0, 3), ...BUSINESS_NAV, ...NAV_ITEMS.slice(3)];
+}
 
 interface DashboardUser {
   email?: string;
@@ -91,15 +104,17 @@ function useIsActive() {
 }
 
 function NavList({
+  items,
   isActive,
   onNavigate,
 }: {
+  items: NavItem[];
   isActive: (href: string) => boolean;
   onNavigate?: () => void;
 }) {
   return (
     <nav className="flex flex-col gap-1">
-      {NAV_ITEMS.map((item) => {
+      {items.map((item) => {
         const active = isActive(item.href);
         return (
           <Link
@@ -180,9 +195,11 @@ function UpgradeCard() {
 }
 
 function SidebarContent({
+  items,
   isActive,
   onNavigate,
 }: {
+  items: NavItem[];
   isActive: (href: string) => boolean;
   onNavigate?: () => void;
 }) {
@@ -192,7 +209,7 @@ function SidebarContent({
         <Logo />
       </div>
       <div className="mt-7 flex-1 overflow-y-auto">
-        <NavList isActive={isActive} onNavigate={onNavigate} />
+        <NavList items={items} isActive={isActive} onNavigate={onNavigate} />
       </div>
       <div className="mt-4 space-y-3">
         <UpgradeCard />
@@ -206,6 +223,8 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
   const [mobileOpen, setMobileOpen] = React.useState(false);
   const isActive = useIsActive();
   const initials = getInitials(user);
+  const { plan } = useSubscription();
+  const navItems = navItemsFor(plan);
 
   const userAvatar = (
     <div className="flex items-center gap-2">
@@ -230,7 +249,7 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
     <div className="min-h-screen bg-surface">
       {/* Fixed left sidebar — desktop only */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-border bg-white/80 px-4 py-5 backdrop-blur lg:flex">
-        <SidebarContent isActive={isActive} />
+        <SidebarContent items={navItems} isActive={isActive} />
       </aside>
 
       {/* Mobile slide-in sidebar */}
@@ -267,7 +286,7 @@ export function DashboardShell({ children, user }: DashboardShellProps) {
                 </Button>
               </div>
               <div className="mt-6 flex-1 overflow-y-auto">
-                <NavList isActive={isActive} onNavigate={() => setMobileOpen(false)} />
+                <NavList items={navItems} isActive={isActive} onNavigate={() => setMobileOpen(false)} />
               </div>
               <div className="mt-4 space-y-3">
                 <UpgradeCard />

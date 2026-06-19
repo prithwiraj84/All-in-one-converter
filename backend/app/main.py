@@ -18,14 +18,17 @@ from app.core.security import (
     SecurityHeadersMiddleware,
 )
 from app.core.storage import cleanup_expired, retention_loop
-from app.core import logbuffer
+from app.core import email, logbuffer
+from app.core.reminders import reminder_loop
 from app.routers import (
     admin as admin_router,
     all_routers,
     files as files_router,
     health as health_router,
     jobs as jobs_router,
+    keys as keys_router,
     payments as payments_router,
+    teams as teams_router,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -37,16 +40,21 @@ async def lifespan(_: FastAPI):
     # Startup: capture logs for the admin panel, purge stale files, run cleanup.
     logbuffer.install()
     cleanup_expired()
-    task = asyncio.create_task(retention_loop())
+    tasks = [asyncio.create_task(retention_loop())]
+    # Renewal-reminder loop only runs when an email provider is configured.
+    if email.can_send():
+        tasks.append(asyncio.create_task(reminder_loop()))
     logger.info("All in one converter API v%s started (env=%s)", __version__, settings.environment)
     try:
         yield
     finally:
-        task.cancel()
-        try:
-            await task
-        except asyncio.CancelledError:
-            pass
+        for task in tasks:
+            task.cancel()
+        for task in tasks:
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
 
 app = FastAPI(
@@ -86,6 +94,8 @@ _OPEN_ROUTERS = {
     id(files_router.router),
     id(jobs_router.router),
     id(payments_router.router),
+    id(keys_router.router),
+    id(teams_router.router),
     id(admin_router.router),
 }
 for router in all_routers:

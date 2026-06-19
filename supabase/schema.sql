@@ -35,8 +35,10 @@ create table if not exists public.profiles (
   updated_at  timestamptz not null default now()
 );
 
--- For existing databases, add the column if it isn't there yet:
+-- For existing databases, add the columns if they aren't there yet:
 alter table public.profiles add column if not exists pro_until timestamptz;
+-- When we last emailed this user a renewal reminder (cleared on each grant).
+alter table public.profiles add column if not exists renewal_reminded_at timestamptz;
 
 -- ── files ──────────────────────────────────────────────────────────────────
 create table if not exists public.files (
@@ -150,6 +152,69 @@ create policy "conversions_update_own" on public.conversions for update using (a
 -- subscriptions (read-only to the user; writes happen via service role)
 drop policy if exists "subscriptions_select_own" on public.subscriptions;
 create policy "subscriptions_select_own" on public.subscriptions for select using (auth.uid() = user_id);
+
+-- ════════════════════════════════════════════════════════════════════════════
+-- Business plan features: REST API keys + Team workspaces & roles
+-- All access is mediated by the backend (service-role), which bypasses RLS.
+-- ════════════════════════════════════════════════════════════════════════════
+
+-- ── api_keys ────────────────────────────────────────────────────────────────
+-- One row per issued key. Only a SHA-256 hash of the key is stored; the full
+-- key is shown to the user exactly once at creation time.
+create table if not exists public.api_keys (
+  id           uuid primary key default gen_random_uuid(),
+  user_id      uuid not null references auth.users (id) on delete cascade,
+  name         text not null default 'API key',
+  key_hash     text not null,          -- sha256 hex of the full secret
+  key_prefix   text not null,          -- e.g. 'aio_live_9f3k…' (display only)
+  last_used_at timestamptz,
+  revoked      boolean not null default false,
+  created_at   timestamptz not null default now()
+);
+create index if not exists api_keys_user_id_idx on public.api_keys (user_id, created_at desc);
+create unique index if not exists api_keys_key_hash_idx on public.api_keys (key_hash);
+
+-- ── teams + members ─────────────────────────────────────────────────────────
+do $$ begin
+  create type team_role as enum ('owner', 'admin', 'member');
+exception when duplicate_object then null; end $$;
+
+create table if not exists public.teams (
+  id          uuid primary key default gen_random_uuid(),
+  owner_id    uuid not null references auth.users (id) on delete cascade,
+  name        text not null default 'My team',
+  created_at  timestamptz not null default now()
+);
+-- One workspace per owner (keeps the model simple).
+create unique index if not exists teams_owner_id_idx on public.teams (owner_id);
+
+create table if not exists public.team_members (
+  id          uuid primary key default gen_random_uuid(),
+  team_id     uuid not null references public.teams (id) on delete cascade,
+  email       text not null,
+  user_id     uuid references auth.users (id) on delete set null,
+  role        team_role not null default 'member',
+  status      text not null default 'invited',  -- 'invited' until the user signs in
+  created_at  timestamptz not null default now()
+);
+create unique index if not exists team_members_team_email_idx on public.team_members (team_id, lower(email));
+create index if not exists team_members_email_idx on public.team_members (lower(email));
+create index if not exists team_members_user_id_idx on public.team_members (user_id);
+
+-- RLS on (service-role bypasses; these allow a signed-in user to read their own).
+alter table public.api_keys     enable row level security;
+alter table public.teams        enable row level security;
+alter table public.team_members enable row level security;
+
+drop policy if exists "api_keys_select_own" on public.api_keys;
+create policy "api_keys_select_own" on public.api_keys for select using (auth.uid() = user_id);
+
+drop policy if exists "teams_select_own" on public.teams;
+create policy "teams_select_own" on public.teams for select using (auth.uid() = owner_id);
+
+drop policy if exists "team_members_select_self" on public.team_members;
+create policy "team_members_select_self" on public.team_members
+  for select using (auth.uid() = user_id);
 
 -- ── Storage bucket for user uploads ─────────────────────────────────────────
 insert into storage.buckets (id, name, public)

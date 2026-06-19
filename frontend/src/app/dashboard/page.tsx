@@ -8,6 +8,8 @@ import {
 } from "@/components/dashboard/dashboard-views";
 import { DashboardAutoRefresh } from "@/components/dashboard/dashboard-actions";
 import { ExpiryBanner } from "@/components/dashboard/expiry-banner";
+import { ApiKeysView } from "@/components/dashboard/api-keys-view";
+import { TeamView } from "@/components/dashboard/team-view";
 import { subscriptionStatus } from "@/lib/subscription";
 
 // Auth-gated, per-user data (reads cookies) — never prerender this route.
@@ -43,6 +45,10 @@ export default async function DashboardHome({
       case "settings":
       case "account":
         return <SettingsView data={data} />;
+      case "api":
+        return <ApiKeysView />;
+      case "team":
+        return <TeamView />;
       default:
         return <DashboardOverview data={data} />;
     }

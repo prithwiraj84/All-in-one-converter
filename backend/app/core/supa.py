@@ -8,7 +8,9 @@ explicit 200 vs 401 from the Auth endpoint when validating a user token.
 """
 from __future__ import annotations
 
+import hashlib
 import logging
+import secrets
 from datetime import datetime, timezone
 
 import httpx
@@ -91,7 +93,8 @@ async def set_plan(user_id: str, plan: str, pro_until_iso: str | None) -> None:
                 f"{settings.supabase_url}/rest/v1/profiles",
                 headers=headers,
                 params={"id": f"eq.{user_id}"},
-                json={"plan": plan, "pro_until": pro_until_iso},
+                # Clear any prior renewal reminder so the new period can remind once.
+                json={"plan": plan, "pro_until": pro_until_iso, "renewal_reminded_at": None},
             )
             # Upsert the subscription row (unique on user_id).
             await client.post(
@@ -358,3 +361,459 @@ async def record_conversion(
                 )
     except Exception:
         logger.warning("record_conversion failed", exc_info=True)
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# REST API keys (Business plan)
+# ════════════════════════════════════════════════════════════════════════════
+API_KEY_PREFIX = "aio_live_"
+
+
+def _hash_key(raw: str) -> str:
+    return hashlib.sha256(raw.encode()).hexdigest()
+
+
+def generate_api_key() -> tuple[str, str, str]:
+    """Return (full_key, sha256_hash, display_prefix). The full key is shown once."""
+    full = f"{API_KEY_PREFIX}{secrets.token_urlsafe(32)}"
+    return full, _hash_key(full), full[: len(API_KEY_PREFIX) + 6] + "…"
+
+
+async def create_api_key(user_id: str, name: str) -> dict | None:
+    """Create a key. Returns {id, name, key (FULL — once), key_prefix, created_at}."""
+    if not is_configured():
+        return None
+    full, key_hash, prefix = generate_api_key()
+    headers = {**_rest_headers(), "Content-Type": "application/json", "Prefer": "return=representation"}
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            resp = await client.post(
+                f"{settings.supabase_url}/rest/v1/api_keys",
+                headers=headers,
+                json={
+                    "user_id": user_id,
+                    "name": (name or "API key").strip()[:60] or "API key",
+                    "key_hash": key_hash,
+                    "key_prefix": prefix,
+                },
+            )
+        resp.raise_for_status()
+        row = resp.json()[0]
+        return {"id": row["id"], "name": row["name"], "key": full, "key_prefix": prefix, "created_at": row["created_at"]}
+    except Exception:
+        logger.warning("create_api_key failed", exc_info=True)
+        return None
+
+
+async def list_api_keys(user_id: str) -> list[dict]:
+    if not is_configured():
+        return []
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            resp = await client.get(
+                f"{settings.supabase_url}/rest/v1/api_keys",
+                params={
+                    "user_id": f"eq.{user_id}",
+                    "revoked": "eq.false",
+                    "select": "id,name,key_prefix,last_used_at,created_at",
+                    "order": "created_at.desc",
+                },
+                headers=_rest_headers(),
+            )
+        resp.raise_for_status()
+        return resp.json()
+    except Exception:
+        logger.warning("list_api_keys failed", exc_info=True)
+        return []
+
+
+async def revoke_api_key(user_id: str, key_id: str) -> bool:
+    if not is_configured():
+        return False
+    headers = {**_rest_headers(), "Content-Type": "application/json", "Prefer": "return=minimal"}
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            resp = await client.patch(
+                f"{settings.supabase_url}/rest/v1/api_keys",
+                params={"id": f"eq.{key_id}", "user_id": f"eq.{user_id}"},
+                headers=headers,
+                json={"revoked": True},
+            )
+        return resp.status_code < 300
+    except Exception:
+        logger.warning("revoke_api_key failed", exc_info=True)
+        return False
+
+
+async def validate_api_key(raw_key: str) -> dict | None:
+    """Resolve a raw API key to {id, user_id}, or None. Touches last_used (best-effort)."""
+    if not is_configured() or not raw_key:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            resp = await client.get(
+                f"{settings.supabase_url}/rest/v1/api_keys",
+                params={
+                    "key_hash": f"eq.{_hash_key(raw_key)}",
+                    "revoked": "eq.false",
+                    "select": "id,user_id",
+                    "limit": "1",
+                },
+                headers=_rest_headers(),
+            )
+            resp.raise_for_status()
+            rows = resp.json()
+            if not rows:
+                return None
+            row = rows[0]
+            try:
+                await client.patch(
+                    f"{settings.supabase_url}/rest/v1/api_keys",
+                    params={"id": f"eq.{row['id']}"},
+                    headers={**_rest_headers(), "Content-Type": "application/json", "Prefer": "return=minimal"},
+                    json={"last_used_at": datetime.now(timezone.utc).isoformat()},
+                )
+            except Exception:  # noqa: BLE001 - last_used is non-critical
+                pass
+            return {"id": row["id"], "user_id": row["user_id"]}
+    except Exception:
+        logger.warning("validate_api_key failed", exc_info=True)
+        return None
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# Team workspaces & roles (Business plan)
+# ════════════════════════════════════════════════════════════════════════════
+TEAM_MAX_MEMBERS = 25
+
+
+async def _user_email(user_id: str) -> str | None:
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            resp = await client.get(
+                f"{settings.supabase_url}/rest/v1/profiles",
+                params={"id": f"eq.{user_id}", "select": "email", "limit": "1"},
+                headers=_rest_headers(),
+            )
+        rows = resp.json()
+        return rows[0]["email"] if rows else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+async def user_email(user_id: str) -> str | None:
+    """Public lookup of a user's email by id (or None)."""
+    return await _user_email(user_id)
+
+
+async def get_or_create_team(owner_id: str) -> dict | None:
+    """The owner's workspace, created on first use."""
+    if not is_configured():
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            resp = await client.get(
+                f"{settings.supabase_url}/rest/v1/teams",
+                params={"owner_id": f"eq.{owner_id}", "select": "id,name,owner_id,created_at", "limit": "1"},
+                headers=_rest_headers(),
+            )
+            rows = resp.json()
+            if rows:
+                return rows[0]
+            cres = await client.post(
+                f"{settings.supabase_url}/rest/v1/teams",
+                headers={**_rest_headers(), "Content-Type": "application/json", "Prefer": "return=representation"},
+                json={"owner_id": owner_id, "name": "My team"},
+            )
+            cres.raise_for_status()
+            return cres.json()[0]
+    except Exception:
+        logger.warning("get_or_create_team failed", exc_info=True)
+        return None
+
+
+async def rename_team(owner_id: str, name: str) -> bool:
+    if not is_configured():
+        return False
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            resp = await client.patch(
+                f"{settings.supabase_url}/rest/v1/teams",
+                params={"owner_id": f"eq.{owner_id}"},
+                headers={**_rest_headers(), "Content-Type": "application/json", "Prefer": "return=minimal"},
+                json={"name": (name or "My team").strip()[:60] or "My team"},
+            )
+        return resp.status_code < 300
+    except Exception:
+        logger.warning("rename_team failed", exc_info=True)
+        return False
+
+
+async def list_team_members(team_id: str) -> list[dict]:
+    if not is_configured():
+        return []
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            resp = await client.get(
+                f"{settings.supabase_url}/rest/v1/team_members",
+                params={
+                    "team_id": f"eq.{team_id}",
+                    "select": "id,email,role,status,created_at",
+                    "order": "created_at.asc",
+                },
+                headers=_rest_headers(),
+            )
+        return resp.json()
+    except Exception:
+        logger.warning("list_team_members failed", exc_info=True)
+        return []
+
+
+async def add_team_member(team_id: str, email: str, role: str) -> dict:
+    """Invite a member by email. Returns {ok: bool, error?: str, member?: dict}."""
+    email = (email or "").strip().lower()
+    role = role if role in ("admin", "member") else "member"
+    if not email or "@" not in email:
+        return {"ok": False, "error": "Enter a valid email address."}
+    if not is_configured():
+        return {"ok": False, "error": "Teams are not configured on this server."}
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            cur = await client.get(
+                f"{settings.supabase_url}/rest/v1/team_members",
+                params={"team_id": f"eq.{team_id}", "select": "id"},
+                headers=_rest_headers(),
+            )
+            if len(cur.json()) >= TEAM_MAX_MEMBERS:
+                return {"ok": False, "error": f"Team is full ({TEAM_MAX_MEMBERS} members max)."}
+            resp = await client.post(
+                f"{settings.supabase_url}/rest/v1/team_members",
+                headers={**_rest_headers(), "Content-Type": "application/json", "Prefer": "return=representation"},
+                json={"team_id": team_id, "email": email, "role": role, "status": "invited"},
+            )
+            if resp.status_code == 409:
+                return {"ok": False, "error": "That email is already on the team."}
+            resp.raise_for_status()
+            return {"ok": True, "member": resp.json()[0]}
+    except Exception:
+        logger.warning("add_team_member failed", exc_info=True)
+        return {"ok": False, "error": "Could not add the member. Please try again."}
+
+
+async def update_team_member(team_id: str, member_id: str, role: str) -> bool:
+    if role not in ("admin", "member") or not is_configured():
+        return False
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            resp = await client.patch(
+                f"{settings.supabase_url}/rest/v1/team_members",
+                params={"id": f"eq.{member_id}", "team_id": f"eq.{team_id}"},
+                headers={**_rest_headers(), "Content-Type": "application/json", "Prefer": "return=minimal"},
+                json={"role": role},
+            )
+        return resp.status_code < 300
+    except Exception:
+        logger.warning("update_team_member failed", exc_info=True)
+        return False
+
+
+async def remove_team_member(team_id: str, member_id: str) -> bool:
+    if not is_configured():
+        return False
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            resp = await client.delete(
+                f"{settings.supabase_url}/rest/v1/team_members",
+                params={"id": f"eq.{member_id}", "team_id": f"eq.{team_id}"},
+                headers=_rest_headers(),
+            )
+        return resp.status_code < 300
+    except Exception:
+        logger.warning("remove_team_member failed", exc_info=True)
+        return False
+
+
+async def team_plan_for(user_id: str, email: str | None) -> str | None:
+    """Return 'business' if the user is a member of a team whose owner has an
+    active Business plan (so members inherit Business). Best-effort; activates
+    the member's row (backfills user_id) on first successful match."""
+    if not is_configured():
+        return None
+    try:
+        if email is None:
+            email = await _user_email(user_id)
+        email = (email or "").lower() or None
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            members: list[dict] = []
+            r1 = await client.get(
+                f"{settings.supabase_url}/rest/v1/team_members",
+                params={"user_id": f"eq.{user_id}", "select": "id,team_id"},
+                headers=_rest_headers(),
+            )
+            members += r1.json()
+            if email:
+                r2 = await client.get(
+                    f"{settings.supabase_url}/rest/v1/team_members",
+                    params={"email": f"eq.{email}", "select": "id,team_id"},
+                    headers=_rest_headers(),
+                )
+                members += r2.json()
+            if not members:
+                return None
+            team_ids = list({m["team_id"] for m in members})
+            tres = await client.get(
+                f"{settings.supabase_url}/rest/v1/teams",
+                params={"id": f"in.({','.join(team_ids)})", "select": "owner_id"},
+                headers=_rest_headers(),
+            )
+            owner_ids = list({t["owner_id"] for t in tres.json()})
+            if not owner_ids:
+                return None
+            pres = await client.get(
+                f"{settings.supabase_url}/rest/v1/profiles",
+                params={"id": f"in.({','.join(owner_ids)})", "plan": "eq.business", "select": "pro_until"},
+                headers=_rest_headers(),
+            )
+            now = datetime.now(timezone.utc)
+            business = False
+            for p in pres.json():
+                until = p.get("pro_until")
+                if not until:
+                    business = True
+                    break
+                try:
+                    if datetime.fromisoformat(until.replace("Z", "+00:00")) > now:
+                        business = True
+                        break
+                except Exception:  # noqa: BLE001
+                    business = True
+                    break
+            if not business:
+                return None
+            if email:  # accept the invite: bind user_id + activate
+                try:
+                    await client.patch(
+                        f"{settings.supabase_url}/rest/v1/team_members",
+                        params={"email": f"eq.{email}"},
+                        headers={**_rest_headers(), "Content-Type": "application/json", "Prefer": "return=minimal"},
+                        json={"user_id": user_id, "status": "active"},
+                    )
+                except Exception:  # noqa: BLE001
+                    pass
+            return "business"
+    except Exception:
+        logger.warning("team_plan_for failed", exc_info=True)
+        return None
+
+
+async def effective_plan(user_id: str, email: str | None = None) -> str:
+    """The user's own plan, upgraded to 'business' if they're on a Business team."""
+    plan = await get_plan(user_id)
+    if plan != "free":
+        return plan
+    return (await team_plan_for(user_id, email)) or "free"
+
+
+async def expiring_profiles(days: int) -> list[dict]:
+    """Paid profiles whose plan lapses within `days` and that haven't been
+    reminded yet (renewal_reminded_at is null). Returns id, email, plan, pro_until."""
+    if not is_configured():
+        return []
+    now = datetime.now(timezone.utc)
+    until = now.replace(microsecond=0)
+    horizon = (now + timedelta(days=max(1, days))).replace(microsecond=0)
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            resp = await client.get(
+                f"{settings.supabase_url}/rest/v1/profiles",
+                params={
+                    "plan": "neq.free",
+                    "pro_until": [f"gte.{until.isoformat()}", f"lte.{horizon.isoformat()}"],
+                    "renewal_reminded_at": "is.null",
+                    "select": "id,email,plan,pro_until",
+                    "limit": "500",
+                },
+                headers=_rest_headers(),
+            )
+        resp.raise_for_status()
+        return resp.json()
+    except Exception:  # noqa: BLE001
+        logger.warning("expiring_profiles failed", exc_info=True)
+        return []
+
+
+async def mark_reminded(user_id: str) -> None:
+    if not is_configured():
+        return
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            await client.patch(
+                f"{settings.supabase_url}/rest/v1/profiles",
+                params={"id": f"eq.{user_id}"},
+                headers={**_rest_headers(), "Content-Type": "application/json", "Prefer": "return=minimal"},
+                json={"renewal_reminded_at": datetime.now(timezone.utc).isoformat()},
+            )
+    except Exception:  # noqa: BLE001
+        logger.warning("mark_reminded failed", exc_info=True)
+
+
+async def send_invite_email(email: str) -> bool:
+    """Send Supabase's built-in invite email (admin endpoint, service-role).
+    Returns False if the address already has an account or Supabase rejects it
+    — the caller treats email as best-effort."""
+    if not is_configured():
+        return False
+    key = settings.supabase_service_role_key or ""
+    headers = {"apikey": key, "Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+    params = {"redirect_to": f"{settings.app_url.rstrip('/')}/login"}
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            resp = await client.post(
+                f"{settings.supabase_url}/auth/v1/invite",
+                headers=headers,
+                params=params,
+                json={"email": email},
+            )
+        return resp.status_code < 300
+    except Exception:  # noqa: BLE001
+        logger.warning("send_invite_email failed", exc_info=True)
+        return False
+
+
+async def list_memberships(user_id: str, email: str | None) -> list[dict]:
+    """Teams the user belongs to (not as owner) — for the dashboard 'Team' view."""
+    if not is_configured():
+        return []
+    try:
+        email = (email or "").lower() or None
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            rows: list[dict] = []
+            r1 = await client.get(
+                f"{settings.supabase_url}/rest/v1/team_members",
+                params={"user_id": f"eq.{user_id}", "select": "team_id,role,status"},
+                headers=_rest_headers(),
+            )
+            rows += r1.json()
+            if email:
+                r2 = await client.get(
+                    f"{settings.supabase_url}/rest/v1/team_members",
+                    params={"email": f"eq.{email}", "select": "team_id,role,status"},
+                    headers=_rest_headers(),
+                )
+                rows += r2.json()
+            if not rows:
+                return []
+            by_team = {r["team_id"]: r for r in rows}
+            tres = await client.get(
+                f"{settings.supabase_url}/rest/v1/teams",
+                params={"id": f"in.({','.join(by_team)})", "select": "id,name,owner_id"},
+                headers=_rest_headers(),
+            )
+            out = []
+            for t in tres.json():
+                m = by_team.get(t["id"], {})
+                out.append({"team_id": t["id"], "team_name": t["name"], "role": m.get("role"), "status": m.get("status")})
+            return out
+    except Exception:
+        logger.warning("list_memberships failed", exc_info=True)
+        return []

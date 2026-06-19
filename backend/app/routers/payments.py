@@ -19,7 +19,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 
 from app.config import settings
-from app.core import supa
+from app.core import email as email_mod, supa
 from app.core.quota import require_user
 
 logger = logging.getLogger("aio.payments")
@@ -124,6 +124,7 @@ async def verify(body: VerifyIn, user: dict = Depends(require_user)) -> dict:
     if settings.plan_amount(body.plan) is None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Unknown plan.")
     until = await _grant_plan(user["id"], body.plan)
+    await email_mod.send_purchase_thankyou(user.get("email"), body.plan, until)
     return {"plan": body.plan, "until": until}
 
 
@@ -143,6 +144,7 @@ async def dev_upgrade(body: CreateOrderIn, user: dict = Depends(require_user)) -
     if settings.plan_amount(body.plan) is None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Unknown plan.")
     until = await _grant_plan(user["id"], body.plan)
+    await email_mod.send_purchase_thankyou(user.get("email"), body.plan, until)
     return {"plan": body.plan, "until": until, "dev": True}
 
 
@@ -169,7 +171,9 @@ async def webhook(request: Request) -> dict:
         plan = notes.get("plan", "pro")
         if user_id and settings.plan_amount(plan) is not None:
             try:
-                await _grant_plan(user_id, plan)
+                until = await _grant_plan(user_id, plan)
+                addr = await supa.user_email(user_id)
+                await email_mod.send_purchase_thankyou(addr, plan, until)
             except Exception:  # noqa: BLE001 - webhook must still 200 so Razorpay won't spam retries
                 logger.warning("webhook grant failed for %s", user_id, exc_info=True)
     return {"ok": True}
