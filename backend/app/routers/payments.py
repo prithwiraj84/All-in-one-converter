@@ -15,7 +15,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 
 from app.config import settings
@@ -63,6 +63,13 @@ async def _grant_plan(user_id: str, plan: str) -> str:
     until = (datetime.now(timezone.utc) + timedelta(days=settings.plan_period_days(plan))).isoformat()
     await supa.set_plan(user_id, plan, until)
     return until
+
+
+async def _notify_purchase(user_id: str, plan: str, until: str) -> None:
+    """Look up the buyer's email and send the thank-you (used by the webhook)."""
+    addr = await supa.user_email(user_id)
+    if addr:
+        await email_mod.send_purchase_thankyou(addr, plan, until)
 
 
 @router.get("/config")
@@ -118,18 +125,18 @@ async def create_order(body: CreateOrderIn, user: dict = Depends(require_user)) 
 
 
 @router.post("/verify")
-async def verify(body: VerifyIn, user: dict = Depends(require_user)) -> dict:
+async def verify(body: VerifyIn, background: BackgroundTasks, user: dict = Depends(require_user)) -> dict:
     if not _verify_payment_signature(body.razorpay_order_id, body.razorpay_payment_id, body.razorpay_signature):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Payment verification failed.")
     if settings.plan_amount(body.plan) is None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Unknown plan.")
     until = await _grant_plan(user["id"], body.plan)
-    await email_mod.send_purchase_thankyou(user.get("email"), body.plan, until)
+    background.add_task(email_mod.send_purchase_thankyou, user.get("email"), body.plan, until)
     return {"plan": body.plan, "until": until}
 
 
 @router.post("/dev-upgrade")
-async def dev_upgrade(body: CreateOrderIn, user: dict = Depends(require_user)) -> dict:
+async def dev_upgrade(body: CreateOrderIn, background: BackgroundTasks, user: dict = Depends(require_user)) -> dict:
     """Development/testing shortcut: grant the plan to the signed-in user WITHOUT
     payment, but only while Razorpay is NOT configured. Once live keys are set
     this refuses (403), so it can't be abused in production.
@@ -144,12 +151,12 @@ async def dev_upgrade(body: CreateOrderIn, user: dict = Depends(require_user)) -
     if settings.plan_amount(body.plan) is None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Unknown plan.")
     until = await _grant_plan(user["id"], body.plan)
-    await email_mod.send_purchase_thankyou(user.get("email"), body.plan, until)
+    background.add_task(email_mod.send_purchase_thankyou, user.get("email"), body.plan, until)
     return {"plan": body.plan, "until": until, "dev": True}
 
 
 @router.post("/webhook")
-async def webhook(request: Request) -> dict:
+async def webhook(request: Request, background: BackgroundTasks) -> dict:
     """Reliable server-side confirmation (configure in the Razorpay dashboard)."""
     raw = await request.body()
     signature = request.headers.get("x-razorpay-signature", "")
@@ -172,8 +179,7 @@ async def webhook(request: Request) -> dict:
         if user_id and settings.plan_amount(plan) is not None:
             try:
                 until = await _grant_plan(user_id, plan)
-                addr = await supa.user_email(user_id)
-                await email_mod.send_purchase_thankyou(addr, plan, until)
+                background.add_task(_notify_purchase, user_id, plan, until)
             except Exception:  # noqa: BLE001 - webhook must still 200 so Razorpay won't spam retries
                 logger.warning("webhook grant failed for %s", user_id, exc_info=True)
     return {"ok": True}

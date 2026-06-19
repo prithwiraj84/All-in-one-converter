@@ -62,11 +62,9 @@ export function TeamView() {
     }
     setBusy(true);
     try {
-      const { emailed } = await addMember(e, role);
+      await addMember(e, role);
       setEmail("");
-      toast.success(
-        emailed ? `Invitation emailed to ${e}` : `Added ${e} — they'll get access when they sign in`,
-      );
+      toast.success(`Invitation sent to ${e}`);
       await load();
     } catch (err) {
       toast.error((err as Error).message);

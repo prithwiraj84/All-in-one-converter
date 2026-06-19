@@ -105,14 +105,12 @@ export async function renameTeam(name: string): Promise<void> {
   if (!res.ok) throw new Error(await detail(res, "Couldn't rename the team."));
 }
 
-export async function addMember(email: string, role: TeamRole): Promise<{ emailed: boolean }> {
+export async function addMember(email: string, role: TeamRole): Promise<void> {
   const res = await authFetch("/api/teams/members", {
     method: "POST",
     body: JSON.stringify({ email, role }),
   });
   if (!res.ok) throw new Error(await detail(res, "Couldn't add the member."));
-  const body = (await res.json().catch(() => ({}))) as { emailed?: boolean };
-  return { emailed: Boolean(body.emailed) };
 }
 
 export async function setMemberRole(id: string, role: TeamRole): Promise<void> {

@@ -7,7 +7,7 @@ roster; everyone can see the teams they belong to.
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from pydantic import BaseModel
 
 from app.core import email as email_mod, supa
@@ -57,18 +57,23 @@ async def _owner_team_id(user: dict) -> str:
 
 
 @router.post("/members")
-async def add_member(body: MemberIn, user: dict = Depends(require_business_owner)) -> dict:
+async def add_member(
+    body: MemberIn, background: BackgroundTasks, user: dict = Depends(require_business_owner)
+) -> dict:
     team = await supa.get_or_create_team(user["id"])
     if not team:
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Teams are unavailable right now.")
     res = await supa.add_team_member(team["id"], body.email, body.role or "member")
     if not res.get("ok"):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, res.get("error", "Could not add the member."))
-    # Send the invitation email (best-effort — access works regardless).
-    emailed = await email_mod.send_team_invite(
-        body.email.strip().lower(), team.get("name") or "the team", user.get("email")
+    # Send the invite AFTER responding (instant UX; access works regardless of email).
+    background.add_task(
+        email_mod.send_team_invite,
+        body.email.strip().lower(),
+        team.get("name") or "the team",
+        user.get("email"),
     )
-    return {**res, "emailed": emailed}
+    return {**res, "queued": True}
 
 
 @router.patch("/members/{member_id}")
