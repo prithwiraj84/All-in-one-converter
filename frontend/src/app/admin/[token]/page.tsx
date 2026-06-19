@@ -147,7 +147,14 @@ function PlanBadge({ plan }: { plan: string }) {
   );
 }
 
-/** Per-row plan switcher — admin sets a user to free / pro / business. */
+const PLAN_DURATIONS = [
+  { days: 30, label: "1 month" },
+  { days: 365, label: "1 year" },
+] as const;
+
+/** Per-row plan switcher — admin sets a user to free / pro / business, and for
+ * paid plans chooses the validity window (1 month or 1 year). Apply commits it
+ * (also lets you re-grant/extend a paid plan with a fresh duration). */
 function PlanControl({
   user,
   creds,
@@ -157,17 +164,30 @@ function PlanControl({
   creds: AdminCreds;
   onChanged: () => void | Promise<void>;
 }) {
+  const [plan, setPlan] = React.useState<PlanName>(user.plan as PlanName);
+  const [days, setDays] = React.useState<number>(user.plan === "pro" ? 30 : 365);
   const [busy, setBusy] = React.useState(false);
   const [err, setErr] = React.useState<string | null>(null);
 
-  async function change(plan: PlanName) {
-    if (plan === user.plan || busy) return;
-    const label = plan === "free" ? "downgrade to Free" : `set to ${plan.toUpperCase()}`;
-    if (!window.confirm(`${label} for ${user.email}?`)) return;
+  const paid = plan !== "free";
+  // Enable Apply when switching plans, or to re-grant/extend a paid plan.
+  const canApply = plan !== user.plan || paid;
+
+  function pickPlan(p: PlanName) {
+    setPlan(p);
+    if (p === "pro") setDays(30);
+    else if (p === "business") setDays(365);
+  }
+
+  async function apply() {
+    if (busy || !canApply) return;
+    const human = PLAN_DURATIONS.find((d) => d.days === days)?.label ?? `${days} days`;
+    const desc = plan === "free" ? "downgrade to Free" : `set ${plan.toUpperCase()} for ${human}`;
+    if (!window.confirm(`${desc} for ${user.email}?`)) return;
     setBusy(true);
     setErr(null);
     try {
-      await setUserPlan(creds, user.id, plan);
+      await setUserPlan(creds, user.id, plan, paid ? days : undefined);
       await onChanged();
     } catch (e) {
       setErr((e as Error).message);
@@ -176,19 +196,34 @@ function PlanControl({
     }
   }
 
+  const selectCls =
+    "rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700 outline-none focus:border-slate-900 disabled:opacity-50";
+
   return (
-    <div className="flex items-center gap-2">
-      <select
-        value={user.plan}
-        disabled={busy}
-        onChange={(e) => change(e.target.value as PlanName)}
-        className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700 outline-none focus:border-slate-900 disabled:opacity-50"
-      >
+    <div className="flex items-center gap-1.5">
+      <select value={plan} disabled={busy} onChange={(e) => pickPlan(e.target.value as PlanName)} className={selectCls}>
         <option value="free">Free</option>
         <option value="pro">Pro</option>
         <option value="business">Business</option>
       </select>
-      {busy && <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />}
+      {paid && (
+        <select value={days} disabled={busy} onChange={(e) => setDays(Number(e.target.value))} className={selectCls}>
+          {PLAN_DURATIONS.map((d) => (
+            <option key={d.days} value={d.days}>
+              {d.label}
+            </option>
+          ))}
+        </select>
+      )}
+      <Button
+        size="sm"
+        variant="outline"
+        className="h-7 px-2.5 text-xs"
+        disabled={busy || !canApply}
+        onClick={apply}
+      >
+        {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Apply"}
+      </Button>
       {err && (
         <span title={err} className="cursor-help text-xs font-semibold text-red-500">
           failed
