@@ -6,7 +6,7 @@ import { SectionHeading } from "@/components/shared/section-heading";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ProCta } from "@/components/landing/pro-cta";
-import { PRICING_TIERS } from "@/lib/site-config";
+import { PRICING_TIERS, SITE } from "@/lib/site-config";
 import { cn } from "@/lib/utils";
 
 export function PricingSection() {
@@ -100,9 +100,27 @@ export function PricingSection() {
                   ))}
                 </ul>
 
-                {/* CTA — the Pro tier opens checkout (or Renew); others link to signup. */}
+                {/* CTA — Pro opens checkout (or Renew); Business emails sales;
+                    Free links to signup. */}
                 {tier.name === "Pro" ? (
                   <ProCta defaultCta={tier.cta} />
+                ) : tier.name === "Business" ? (
+                  <Button
+                    asChild
+                    size="lg"
+                    variant={highlighted ? "gradient" : "outline"}
+                    className="mt-8 w-full"
+                  >
+                    <a
+                      href={`mailto:prithwirajdas84@gmail.com?subject=${encodeURIComponent(
+                        "Business plan enquiry — " + SITE.name,
+                      )}&body=${encodeURIComponent(
+                        "Hi,\n\nI'm interested in the Business plan. Here are a few details about my needs:\n\n- Team size:\n- Expected monthly volume:\n- Tools needed:\n\nThanks!",
+                      )}`}
+                    >
+                      {tier.cta}
+                    </a>
+                  </Button>
                 ) : (
                   <Button
                     asChild

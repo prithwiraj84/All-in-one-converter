@@ -96,3 +96,19 @@ export async function adminFetch<T>(
 export async function adminLogin(creds: AdminCreds): Promise<void> {
   await adminFetch("/login", creds, { method: "POST" });
 }
+
+export type PlanName = "free" | "pro" | "business";
+
+/** Admin override of a user's plan. Paid plans get a `days`-long grant (default 365). */
+export async function setUserPlan(
+  creds: AdminCreds,
+  userId: string,
+  plan: PlanName,
+  days?: number,
+): Promise<{ ok: boolean; user_id: string; plan: string; pro_until: string | null }> {
+  return adminFetch("/set-plan", creds, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ user_id: userId, plan, days }),
+  });
+}

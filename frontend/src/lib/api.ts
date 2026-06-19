@@ -9,11 +9,15 @@ export interface RunToolArgs {
   options?: Record<string, string | number | boolean>;
   /** 0..100 upload progress callback. */
   onProgress?: (percent: number) => void;
+  /** Fires once the request body has finished uploading (processing begins). */
+  onUploadDone?: () => void;
   signal?: AbortSignal;
   /** Optional bearer token for authenticated requests. */
   token?: string;
   /** Frontend tool slug, sent so the backend can record history accurately. */
   toolSlug?: string;
+  /** Client-generated id so the backend can stream this job's progress (SSE). */
+  jobId?: string;
 }
 
 /**
@@ -26,9 +30,11 @@ export function runTool({
   files,
   options = {},
   onProgress,
+  onUploadDone,
   signal,
   token,
   toolSlug,
+  jobId,
 }: RunToolArgs): Promise<JobResult> {
   return new Promise((resolve, reject) => {
     const url = `${API_BASE}${endpoint.startsWith("/") ? endpoint : `/${endpoint}`}`;
@@ -45,12 +51,15 @@ export function runTool({
     xhr.timeout = 180_000;
     if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`);
     if (toolSlug) xhr.setRequestHeader("X-Tool-Slug", toolSlug);
+    if (jobId) xhr.setRequestHeader("X-Job-Id", jobId);
 
     xhr.upload.onprogress = (e) => {
       if (e.lengthComputable && onProgress) {
         onProgress(Math.round((e.loaded / e.total) * 100));
       }
     };
+    // Body fully uploaded → server-side processing starts now.
+    xhr.upload.onload = () => onUploadDone?.();
 
     xhr.onload = () => {
       let body: unknown;

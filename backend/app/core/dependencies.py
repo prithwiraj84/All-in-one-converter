@@ -12,7 +12,7 @@ from app.config import settings
 from app.core.security import scan_for_malware, validate_upload
 from app.core.storage import job_dir, new_job_id, save_upload
 from app.core.quota import current_quota, fmt_bytes, guess_mime, retention_minutes_for
-from app.core import supa
+from app.core import progress, supa
 from app.schemas.jobs import JobResult
 
 # A runner takes (job_id, saved_paths, out_dir) and returns a JobResult.
@@ -69,8 +69,18 @@ async def run_job(
                 raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "File failed the security scan.")
             saved.append(path)
 
-        # Services are synchronous (CPU / subprocess) — keep the event loop free.
-        result = await run_in_threadpool(runner, job_id, saved, out_dir)
+        # Bind a progress reporter (if the client opted in via X-Job-Id) so long
+        # services can stream a real percentage. The ContextVar is copied into
+        # the threadpool worker by anyio; report() is a no-op when nothing's bound.
+        progress_id = ctx.progress_id if ctx else None
+        token = progress.bind(progress_id) if progress_id else None
+        try:
+            # Services are synchronous (CPU / subprocess) — keep the event loop free.
+            result = await run_in_threadpool(runner, job_id, saved, out_dir)
+        finally:
+            if progress_id:
+                progress.finish(progress_id, ok=True)
+                progress.unbind(token)
     except HTTPException:
         shutil.rmtree(out_dir, ignore_errors=True)
         raise

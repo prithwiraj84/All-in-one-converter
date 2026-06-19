@@ -340,14 +340,34 @@ export function ToolWorkspace({ slug }: { slug: string }) {
               <Loader size={64} />
               <div className="w-full max-w-sm space-y-2">
                 <p className="font-medium">
-                  {state.stage === "uploading" ? "Uploading your files…" : "Processing…"}
-                </p>
-                <Progress value={state.stage === "uploading" ? state.progress : 100} />
-                <p className="text-xs text-muted-foreground">
                   {state.stage === "uploading"
-                    ? `${state.progress}%`
-                    : "Crunching the bytes — this won't take long."}
+                    ? "Uploading your files…"
+                    : state.stageLabel
+                      ? state.stageLabel.charAt(0).toUpperCase() + state.stageLabel.slice(1) + "…"
+                      : "Processing…"}
                 </p>
+                {(() => {
+                  const pct = state.stage === "uploading" ? state.progress : state.processing;
+                  if (pct != null) {
+                    return (
+                      <>
+                        <Progress value={pct} />
+                        <p className="text-xs text-muted-foreground">{Math.round(pct)}%</p>
+                      </>
+                    );
+                  }
+                  // Processing with no measurable percentage yet → indeterminate.
+                  return (
+                    <>
+                      <div className="relative h-2.5 w-full overflow-hidden rounded-full bg-muted">
+                        <div className="h-full w-full animate-pulse rounded-full bg-brand-gradient opacity-70" />
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Crunching the bytes — this won&apos;t take long.
+                      </p>
+                    </>
+                  );
+                })()}
               </div>
               <Button variant="ghost" size="sm" onClick={cancel}>
                 Cancel

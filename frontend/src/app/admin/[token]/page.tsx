@@ -25,10 +25,12 @@ import { cn, formatBytes } from "@/lib/utils";
 import {
   adminFetch,
   adminLogin,
+  setUserPlan,
   type AdminCreds,
   type AdminUser,
   type LogEntry,
   type OverviewResp,
+  type PlanName,
   type ToolUse,
 } from "@/lib/admin-api";
 
@@ -139,13 +141,72 @@ function Overview({ data }: { data: OverviewResp }) {
 function PlanBadge({ plan }: { plan: string }) {
   if (plan === "free") return <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">Free</span>;
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-brand-gradient px-2 py-0.5 text-xs font-semibold text-white">
+    <span className="inline-flex items-center gap-1 rounded-full bg-brand-gradient px-2 py-0.5 text-xs font-semibold capitalize text-white">
       <Crown className="h-3 w-3" /> {plan}
     </span>
   );
 }
 
-function UsersTable({ users }: { users: AdminUser[] }) {
+/** Per-row plan switcher — admin sets a user to free / pro / business. */
+function PlanControl({
+  user,
+  creds,
+  onChanged,
+}: {
+  user: AdminUser;
+  creds: AdminCreds;
+  onChanged: () => void | Promise<void>;
+}) {
+  const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState<string | null>(null);
+
+  async function change(plan: PlanName) {
+    if (plan === user.plan || busy) return;
+    const label = plan === "free" ? "downgrade to Free" : `set to ${plan.toUpperCase()}`;
+    if (!window.confirm(`${label} for ${user.email}?`)) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      await setUserPlan(creds, user.id, plan);
+      await onChanged();
+    } catch (e) {
+      setErr((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2">
+      <select
+        value={user.plan}
+        disabled={busy}
+        onChange={(e) => change(e.target.value as PlanName)}
+        className="rounded-md border border-slate-300 bg-white px-2 py-1 text-xs font-medium text-slate-700 outline-none focus:border-slate-900 disabled:opacity-50"
+      >
+        <option value="free">Free</option>
+        <option value="pro">Pro</option>
+        <option value="business">Business</option>
+      </select>
+      {busy && <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-400" />}
+      {err && (
+        <span title={err} className="cursor-help text-xs font-semibold text-red-500">
+          failed
+        </span>
+      )}
+    </div>
+  );
+}
+
+function UsersTable({
+  users,
+  creds,
+  onChanged,
+}: {
+  users: AdminUser[];
+  creds: AdminCreds;
+  onChanged: () => void | Promise<void>;
+}) {
   return (
     <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
       <table className="w-full text-left text-sm">
@@ -153,6 +214,7 @@ function UsersTable({ users }: { users: AdminUser[] }) {
           <tr>
             <th className="px-4 py-3">User</th>
             <th className="px-4 py-3">Plan</th>
+            <th className="px-4 py-3">Manage plan</th>
             <th className="px-4 py-3 text-right">Conversions</th>
             <th className="px-4 py-3">Last active</th>
             <th className="px-4 py-3">Joined</th>
@@ -165,14 +227,20 @@ function UsersTable({ users }: { users: AdminUser[] }) {
                 <p className="font-medium text-slate-900">{u.email}</p>
                 {u.name && <p className="text-xs text-slate-400">{u.name}</p>}
               </td>
-              <td className="px-4 py-3"><PlanBadge plan={u.plan} /></td>
+              <td className="px-4 py-3">
+                <PlanBadge plan={u.plan} />
+                {u.plan !== "free" && u.pro_until && (
+                  <p className="mt-1 text-[11px] text-slate-400">until {fmtDate(u.pro_until)}</p>
+                )}
+              </td>
+              <td className="px-4 py-3"><PlanControl user={u} creds={creds} onChanged={onChanged} /></td>
               <td className="px-4 py-3 text-right font-medium">{fmtNum(u.conversions)}</td>
               <td className="px-4 py-3 text-slate-500">{fmtDate(u.last_active)}</td>
               <td className="px-4 py-3 text-slate-500">{fmtDate(u.created_at)}</td>
             </tr>
           ))}
           {users.length === 0 && (
-            <tr><td colSpan={5} className="px-4 py-10 text-center text-slate-400">No users yet.</td></tr>
+            <tr><td colSpan={6} className="px-4 py-10 text-center text-slate-400">No users yet.</td></tr>
           )}
         </tbody>
       </table>
@@ -529,7 +597,7 @@ function Panel({ creds, onLogout }: { creds: AdminCreds; onLogout: () => void })
         ) : (
           <>
             {tab === "overview" && <Overview data={overview} />}
-            {tab === "users" && <UsersTable users={users ?? []} />}
+            {tab === "users" && <UsersTable users={users ?? []} creds={creds} onChanged={refresh} />}
             {tab === "tools" && <ToolsList tools={tools ?? []} />}
             {tab === "system" && <SystemSection data={overview} />}
             {tab === "logs" && <LogsSection creds={creds} />}

@@ -9,6 +9,7 @@ import threading
 from pathlib import Path
 
 from app.config import settings
+from app.core import progress
 from app.core.errors import ProcessingError
 from app.schemas.jobs import JobResult
 from app.services.base import ensure_binary, file_result, run_command, stem, text_result
@@ -63,7 +64,15 @@ def _whisper_segments(wav: Path, *, language: str, translate: bool):
         vad_filter=True,
         beam_size=1,
     )
-    return list(segments), info
+    # faster-whisper yields segments lazily; report progress against the known
+    # audio duration as each one is decoded (the slow part of the job).
+    duration = float(getattr(info, "duration", 0) or 0)
+    collected = []
+    for seg in segments:
+        collected.append(seg)
+        if duration > 0:
+            progress.report(8.0 + min(90.0, (seg.end / duration) * 90.0), "transcribing")
+    return collected, info
 
 
 def transcribe(
@@ -74,6 +83,7 @@ def transcribe(
     language: str = "auto",
     translate: bool = False,
 ) -> JobResult:
+    progress.report(4.0, "preparing audio")
     wav = _to_wav(src, out_dir)
     segments, info = _whisper_segments(wav, language=language, translate=translate)
     text = "\n".join(s.text.strip() for s in segments).strip()
@@ -108,6 +118,7 @@ def subtitles(
     translate: bool = False,
 ) -> JobResult:
     fmt = "vtt" if str(fmt).lower() == "vtt" else "srt"
+    progress.report(4.0, "preparing audio")
     wav = _to_wav(src, out_dir)
     segments, _ = _whisper_segments(wav, language=language, translate=translate)
     if not segments:

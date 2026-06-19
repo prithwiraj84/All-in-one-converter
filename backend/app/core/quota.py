@@ -60,6 +60,7 @@ class QuotaContext:
     plan: str
     limits: PlanLimits
     tool: str | None
+    progress_id: str | None = None
 
 
 _quota_ctx: contextvars.ContextVar[QuotaContext | None] = contextvars.ContextVar(
@@ -106,10 +107,12 @@ async def enforce_quota(request: Request) -> QuotaContext:
     """FastAPI dependency: authenticate + enforce per-user quotas."""
     token = _bearer(request)
     tool = request.headers.get("x-tool-slug")
+    # Client-generated id used only to stream this job's progress (not a secret).
+    pid = (request.headers.get("x-job-id") or "")[:64].strip() or None
 
     # Anonymous, or Supabase not wired up → Free limits, no per-user tracking.
     if not token or not supa.is_configured():
-        ctx = QuotaContext(None, "free", plan_limits("free"), tool)
+        ctx = QuotaContext(None, "free", plan_limits("free"), tool, pid)
         _quota_ctx.set(ctx)
         return ctx
 
@@ -118,7 +121,7 @@ async def enforce_quota(request: Request) -> QuotaContext:
         user = await supa.validate_token(token)
     except (httpx.HTTPError, Exception):  # noqa: BLE001 - never 500 on auth
         logger.warning("token validation unavailable; allowing as anonymous", exc_info=True)
-        ctx = QuotaContext(None, "free", plan_limits("free"), tool)
+        ctx = QuotaContext(None, "free", plan_limits("free"), tool, pid)
         _quota_ctx.set(ctx)
         return ctx
 
@@ -131,7 +134,7 @@ async def enforce_quota(request: Request) -> QuotaContext:
     user_id = user["id"]
     plan = await supa.get_plan(user_id)
     limits = plan_limits(plan)
-    ctx = QuotaContext(user_id, plan, limits, tool)
+    ctx = QuotaContext(user_id, plan, limits, tool, pid)
     _quota_ctx.set(ctx)
 
     # Daily task limit — only reject on a confirmed count.

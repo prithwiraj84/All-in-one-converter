@@ -9,6 +9,7 @@ errors there) and rate-limited by the global limiter.
 from __future__ import annotations
 
 import hmac
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
@@ -96,6 +97,34 @@ async def overview(_: bool = Depends(require_admin)) -> dict:
 @router.get("/users")
 async def users(_: bool = Depends(require_admin), limit: int = 200) -> dict:
     return {"users": await supa.admin_users(limit=min(max(limit, 1), 1000))}
+
+
+class SetPlanBody(BaseModel):
+    user_id: str
+    plan: str  # free | pro | business
+    days: int | None = None  # validity for paid plans (default 365)
+
+
+@router.post("/set-plan")
+async def set_plan(body: SetPlanBody, _: bool = Depends(require_admin)) -> dict:
+    """Admin override of a user's plan. Paid plans get a generous grant window
+    (default 365 days) recorded in pro_until; 'free' clears it."""
+    plan = (body.plan or "").strip().lower()
+    if plan not in {"free", "pro", "business"}:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Plan must be free, pro or business.")
+    user_id = (body.user_id or "").strip()
+    if not user_id:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Missing user_id.")
+    if not supa.is_configured():
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Supabase is not configured.")
+
+    pro_until_iso: str | None = None
+    if plan != "free":
+        days = body.days if (body.days and body.days > 0) else 365
+        pro_until_iso = (datetime.now(timezone.utc) + timedelta(days=days)).isoformat()
+    await supa.set_plan(user_id, plan, pro_until_iso)
+    logbuffer.push_external("info", "admin", f"plan set to {plan} for {user_id}")
+    return {"ok": True, "user_id": user_id, "plan": plan, "pro_until": pro_until_iso}
 
 
 @router.get("/tools")

@@ -9,9 +9,9 @@ export const SITE = {
   url: process.env.NEXT_PUBLIC_SITE_URL || "https://all-in-one-converter.devprithwiraj.in",
   ogImage: "/og.png",
   twitter: "@aioconverter",
-  // Public contact (used in the footer + legal pages). Swap for a domain alias
-  // (e.g. support@your-domain) whenever you have one set up.
-  email: "digital.toshiconsulting@gmail.com",
+  // Public contact (used in the footer + legal pages + support links). Swap for
+  // a domain alias (e.g. support@your-domain) whenever you have one set up.
+  email: "prithwirajdas84@gmail.com",
 } as const;
 
 /**

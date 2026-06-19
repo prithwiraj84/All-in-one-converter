@@ -24,6 +24,7 @@ from app.routers import (
     all_routers,
     files as files_router,
     health as health_router,
+    jobs as jobs_router,
     payments as payments_router,
 )
 
@@ -83,6 +84,7 @@ register_exception_handlers(app)
 _OPEN_ROUTERS = {
     id(health_router.router),
     id(files_router.router),
+    id(jobs_router.router),
     id(payments_router.router),
     id(admin_router.router),
 }

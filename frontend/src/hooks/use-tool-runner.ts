@@ -1,10 +1,19 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import { runTool } from "@/lib/api";
+import { runTool, API_BASE } from "@/lib/api";
 import { isClientTool, runClientTool, type ClientFile } from "@/lib/client-tools";
 import type { Tool } from "@/lib/tools-registry";
 import type { JobResult } from "@/lib/types";
+
+/** A short, URL-safe random id used to stream a job's processing progress. */
+function randomJobId(): string {
+  try {
+    return crypto.randomUUID().replace(/-/g, "");
+  } catch {
+    return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+  }
+}
 
 /** Build a JobResult-shaped envelope from in-browser outputs (blob: URLs). */
 function clientResult(tool: Tool, outputs: ClientFile[]): JobResult {
@@ -37,12 +46,25 @@ export type RunnerStage = "idle" | "uploading" | "processing" | "done" | "error"
 
 export interface RunnerState {
   stage: RunnerStage;
+  /** Upload percentage (during "uploading"). */
   progress: number;
+  /** Real server-side processing percentage (during "processing"); null until
+   * the job reports a measurable percentage (show an indeterminate bar then). */
+  processing: number | null;
+  /** Human label for the current processing step, e.g. "transcoding video". */
+  stageLabel: string | null;
   result: JobResult | null;
   error: string | null;
 }
 
-const INITIAL: RunnerState = { stage: "idle", progress: 0, result: null, error: null };
+const INITIAL: RunnerState = {
+  stage: "idle",
+  progress: 0,
+  processing: null,
+  stageLabel: null,
+  result: null,
+  error: null,
+};
 
 /**
  * Drives a single tool execution: tracks upload progress, processing,
@@ -51,6 +73,12 @@ const INITIAL: RunnerState = { stage: "idle", progress: 0, result: null, error: 
 export function useToolRunner(tool: Tool | undefined) {
   const [state, setState] = useState<RunnerState>(INITIAL);
   const abortRef = useRef<AbortController | null>(null);
+  const esRef = useRef<EventSource | null>(null);
+
+  const closeStream = useCallback(() => {
+    esRef.current?.close();
+    esRef.current = null;
+  }, []);
 
   const run = useCallback(
     async (
@@ -65,22 +93,54 @@ export function useToolRunner(tool: Tool | undefined) {
       }
       const controller = new AbortController();
       abortRef.current = controller;
+      closeStream();
 
       // ── In-browser path: instant, private, no upload. Falls through to the
       // server if the browser can't handle this input/format (runClientTool
       // returns null on any unsupported case or failure).
       if (isClientTool(tool.slug)) {
-        setState({ stage: "processing", progress: 100, result: null, error: null });
+        setState({ ...INITIAL, stage: "processing", processing: 100 });
         const outputs = await runClientTool(tool.slug, files, options);
         if (outputs && outputs.length > 0) {
           const result = clientResult(tool, outputs);
-          setState({ stage: "done", progress: 100, result, error: null });
+          setState({ ...INITIAL, stage: "done", progress: 100, result });
           return result;
         }
         // else: fall back to the server below
       }
 
-      setState({ stage: "uploading", progress: 0, result: null, error: null });
+      setState({ ...INITIAL, stage: "uploading" });
+
+      // Subscribe to live processing progress for this job (best-effort — if the
+      // browser/host can't stream, the bar simply falls back to indeterminate).
+      const jobId = randomJobId();
+      const openStream = () => {
+        if (esRef.current) return;
+        try {
+          const es = new EventSource(`${API_BASE}/api/jobs/${jobId}/progress`);
+          esRef.current = es;
+          es.onmessage = (ev) => {
+            try {
+              const d = JSON.parse(ev.data) as { percent?: number; stage?: string; done?: boolean };
+              if (d.done) {
+                setState((s) => (s.stage === "processing" ? { ...s, processing: 100 } : s));
+                closeStream();
+              } else if (typeof d.percent === "number" && d.percent > 0) {
+                setState((s) =>
+                  s.stage === "processing"
+                    ? { ...s, processing: d.percent!, stageLabel: d.stage ?? s.stageLabel }
+                    : s,
+                );
+              }
+            } catch {
+              /* ignore malformed event */
+            }
+          };
+          es.onerror = () => closeStream();
+        } catch {
+          /* EventSource unsupported — keep the indeterminate bar */
+        }
+      };
 
       try {
         const result = await runTool({
@@ -89,38 +149,45 @@ export function useToolRunner(tool: Tool | undefined) {
           options,
           token,
           toolSlug: tool.slug,
+          jobId,
           signal: controller.signal,
           onProgress: (percent) =>
-            setState((s) => ({
-              ...s,
-              progress: percent,
-              stage: percent >= 100 ? "processing" : "uploading",
-            })),
+            setState((s) => (s.stage === "uploading" ? { ...s, progress: percent } : s)),
+          onUploadDone: () => {
+            setState((s) => ({ ...s, stage: "processing" }));
+            openStream();
+          },
         });
 
+        closeStream();
         if (result.status === "failed") {
-          setState({ stage: "error", progress: 100, result, error: result.error ?? "Processing failed." });
+          setState({ ...INITIAL, stage: "error", progress: 100, result, error: result.error ?? "Processing failed." });
         } else {
-          setState({ stage: "done", progress: 100, result, error: null });
+          setState({ ...INITIAL, stage: "done", progress: 100, processing: 100, result });
         }
         return result;
       } catch (err) {
+        closeStream();
         if ((err as Error).name === "AbortError") {
           setState(INITIAL);
         } else {
-          setState({ stage: "error", progress: 0, result: null, error: (err as Error).message });
+          setState({ ...INITIAL, stage: "error", error: (err as Error).message });
         }
         return null;
       }
     },
-    [tool],
+    [tool, closeStream],
   );
 
   const cancel = useCallback(() => {
+    closeStream();
     abortRef.current?.abort();
-  }, []);
+  }, [closeStream]);
 
-  const reset = useCallback(() => setState(INITIAL), []);
+  const reset = useCallback(() => {
+    closeStream();
+    setState(INITIAL);
+  }, [closeStream]);
 
   return { state, run, cancel, reset };
 }

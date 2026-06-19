@@ -6,7 +6,7 @@ from pathlib import Path
 from app.config import settings
 from app.core.errors import ProcessingError
 from app.schemas.jobs import JobResult
-from app.services.base import ensure_binary, file_result, run_command, stem
+from app.services.base import ensure_binary, file_result, run_ffmpeg, stem
 
 AUDIO_TARGETS = {"mp3", "wav", "ogg", "flac", "aac", "m4a"}
 VIDEO_TARGETS = {"mp4", "webm", "mov", "avi", "mkv", "gif"}
@@ -28,7 +28,7 @@ def audio_convert(job_id: str, src: Path, out_dir: Path, *, target: str = "mp3")
         cmd += ["-codec:a", "libvorbis", "-q:a", "5"]
     cmd.append(str(out))
 
-    run_command(cmd, timeout=420)
+    run_ffmpeg(cmd, src, timeout=420, stage="converting audio")
     return file_result(job_id, "audio-converter", out, meta={"format": target})
 
 
@@ -52,5 +52,5 @@ def video_convert(job_id: str, src: Path, out_dir: Path, *, target: str = "mp4")
     else:
         cmd = [ffmpeg, "-y", "-i", str(src), str(out)]
 
-    run_command(cmd, timeout=900)
+    run_ffmpeg(cmd, src, timeout=900, stage="transcoding video")
     return file_result(job_id, "video-converter", out, meta={"format": target})

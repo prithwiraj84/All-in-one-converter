@@ -8,6 +8,7 @@ from app.routers import (
     font,
     health,
     image,
+    jobs,
     ocr,
     payments,
     pdf,
@@ -18,6 +19,7 @@ from app.routers import (
 all_routers = [
     health.router,
     files.router,
+    jobs.router,
     pdf.router,
     document.router,
     image.router,
