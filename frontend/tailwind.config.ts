@@ -164,6 +164,17 @@ const config: Config = {
           "0%, 100%": { boxShadow: "0 0 8px -1px rgba(124,58,237,0.55)" },
           "50%": { boxShadow: "0 0 16px 1px rgba(124,58,237,0.95)" },
         },
+        // Business badge — moving red→maroon gradient + pulsing "ember" glow.
+        "business-pulse": {
+          "0%, 100%": {
+            backgroundPosition: "0% 50%",
+            boxShadow: "0 0 10px -1px rgba(220,38,38,0.55), inset 0 0 6px -2px rgba(0,0,0,0.5)",
+          },
+          "50%": {
+            backgroundPosition: "100% 50%",
+            boxShadow: "0 0 22px 2px rgba(153,27,27,0.95), inset 0 0 6px -2px rgba(0,0,0,0.5)",
+          },
+        },
         // Sweeping light streak across the Pro badge (premium "shine").
         shine: {
           "0%": { transform: "translateX(-120%)" },
@@ -187,6 +198,7 @@ const config: Config = {
         twinkle: "twinkle 1.8s ease-in-out infinite",
         heartbeat: "heartbeat 1.6s ease-in-out infinite",
         "glow-pulse": "glow-pulse 2s ease-in-out infinite",
+        "business-pulse": "business-pulse 2.6s ease-in-out infinite",
         shine: "shine 4s ease-in-out infinite",
       },
     },
