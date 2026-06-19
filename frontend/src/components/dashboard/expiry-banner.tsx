@@ -3,17 +3,21 @@
 import * as React from "react";
 import { TriangleAlert, X } from "lucide-react";
 import { UpgradeButton } from "@/components/upgrade-button";
+import { planLimits } from "@/lib/plans";
+import type { SubscriptionPlan } from "@/lib/types";
 
 const DISMISS_KEY = "pro-expiry-dismissed";
 
 /**
- * Warning shown on the dashboard when a Pro plan is close to lapsing. Dismissible
+ * Warning shown on the dashboard when a paid plan is close to lapsing. Dismissible
  * for the session (returns on the next visit) so it nudges without nagging.
  */
 export function ExpiryBanner({
+  plan,
   daysLeft,
   expiryLabel,
 }: {
+  plan: string;
   daysLeft: number;
   expiryLabel: string | null;
 }) {
@@ -25,6 +29,7 @@ export function ExpiryBanner({
 
   if (dismissed) return null;
 
+  const label = planLimits(plan as SubscriptionPlan).label;
   const when = daysLeft <= 0 ? "today" : daysLeft === 1 ? "tomorrow" : `in ${daysLeft} days`;
 
   return (
@@ -34,15 +39,15 @@ export function ExpiryBanner({
           <TriangleAlert className="h-5 w-5" />
         </span>
         <div>
-          <p className="text-sm font-semibold text-amber-900">Your Pro plan expires {when}</p>
+          <p className="text-sm font-semibold text-amber-900">Your {label} plan expires {when}</p>
           <p className="text-xs text-amber-700">
-            {expiryLabel ? `Ends on ${expiryLabel}. ` : ""}Renew now to keep your Pro limits.
+            {expiryLabel ? `Ends on ${expiryLabel}. ` : ""}Renew now to keep your {label} limits.
           </p>
         </div>
       </div>
       <div className="flex items-center gap-1.5 self-end sm:self-auto">
-        <UpgradeButton variant="gradient" size="sm">
-          Renew Pro
+        <UpgradeButton plan={plan} variant="gradient" size="sm">
+          Renew {label}
         </UpgradeButton>
         <button
           type="button"

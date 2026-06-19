@@ -72,6 +72,7 @@ class Settings(BaseSettings):
     razorpay_pro_amount: int = 9900       # ₹99
     razorpay_business_amount: int = 49900  # ₹499
     pro_period_days: int = 30
+    business_period_days: int = 365  # Business is sold via Contact Sales → annual
 
     @property
     def razorpay_enabled(self) -> bool:
@@ -79,6 +80,12 @@ class Settings(BaseSettings):
 
     def plan_amount(self, plan: str) -> int | None:
         return {"pro": self.razorpay_pro_amount, "business": self.razorpay_business_amount}.get(plan)
+
+    def plan_period_days(self, plan: str) -> int:
+        """Validity window granted per plan activation/renewal."""
+        return {"pro": self.pro_period_days, "business": self.business_period_days}.get(
+            plan, self.pro_period_days
+        )
 
     # AI tools
     # An LLM powers image captioning and (optionally) higher-quality translation.

@@ -279,7 +279,7 @@ export function DashboardOverview({ data }: { data: DashboardData }) {
           label="Tasks today"
           value={`${usage.tasksToday} / ${formatTaskQuota(usage.dailyQuota)}`}
           progress={dailyFinite ? tasksPct : undefined}
-          caption={dailyFinite ? `${limits.dailyTasks} per day on ${limits.label}` : "Unlimited on Pro"}
+          caption={dailyFinite ? `${limits.dailyTasks} per day on ${limits.label}` : `Unlimited on ${limits.label}`}
         />
         <MetricCard
           icon={HardDrive}
@@ -297,7 +297,7 @@ export function DashboardOverview({ data }: { data: DashboardData }) {
               "Upgrade for more"
             ) : (
               <>
-                Thanks for being Pro <ProHeart />
+                Thanks for being {limits.label} <ProHeart />
               </>
             )
           }
@@ -563,8 +563,8 @@ export function SettingsView({ data }: { data: DashboardData }) {
                 <span className="text-muted-foreground">Renews on</span>
                 <span className="font-semibold">{sub.expiryLabel ?? "—"}</span>
               </div>
-              <UpgradeButton variant="gradient" className="w-full">
-                <Sparkles className="h-4 w-4" /> Renew Pro subscription
+              <UpgradeButton plan={plan} variant="gradient" className="w-full">
+                <Sparkles className="h-4 w-4" /> Renew {limits.label} subscription
               </UpgradeButton>
             </div>
           )}

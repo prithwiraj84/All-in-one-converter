@@ -24,6 +24,8 @@ import { UpgradeButton } from "@/components/upgrade-button";
 import { ProBadge } from "@/components/pro-badge";
 import { useSubscription } from "@/hooks/use-subscription";
 import { subscriptionStatus } from "@/lib/subscription";
+import { planLimits } from "@/lib/plans";
+import type { SubscriptionPlan } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 interface NavItem {
@@ -129,6 +131,7 @@ function NavList({
 function UpgradeCard() {
   const { plan, proUntil, ready } = useSubscription();
   const { isPaid, daysLeft, expiryLabel } = subscriptionStatus(plan, proUntil);
+  const label = planLimits(plan as SubscriptionPlan).label;
 
   // Paid plan → show subscription status + Renew (no upgrade/pricing prompts).
   if (ready && isPaid) {
@@ -137,18 +140,18 @@ function UpgradeCard() {
         <div className="rounded-[calc(var(--radius)-2px)] bg-gradient-to-br from-primary/5 via-secondary/5 to-accent/5 p-4">
           <div className="mb-2 inline-flex items-center gap-1.5 rounded-full bg-brand-gradient bg-[length:200%_200%] px-2.5 py-1 text-[11px] font-semibold text-white shadow-glow">
             <Sparkles className="h-3 w-3" />
-            Pro active
+            {label} active
           </div>
           <p className="text-sm font-semibold leading-snug text-foreground">
-            {daysLeft != null ? `${daysLeft} day${daysLeft === 1 ? "" : "s"} left` : "Pro plan active"}
+            {daysLeft != null ? `${daysLeft} day${daysLeft === 1 ? "" : "s"} left` : `${label} plan active`}
           </p>
           {expiryLabel && (
             <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
               Renews on {expiryLabel}
             </p>
           )}
-          <UpgradeButton variant="gradient" size="sm" className="mt-3 w-full">
-            Renew Pro
+          <UpgradeButton plan={plan} variant="gradient" size="sm" className="mt-3 w-full">
+            Renew {label}
           </UpgradeButton>
         </div>
       </div>

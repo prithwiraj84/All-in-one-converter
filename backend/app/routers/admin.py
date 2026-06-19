@@ -120,7 +120,7 @@ async def set_plan(body: SetPlanBody, _: bool = Depends(require_admin)) -> dict:
 
     pro_until_iso: str | None = None
     if plan != "free":
-        days = body.days if (body.days and body.days > 0) else 365
+        days = body.days if (body.days and body.days > 0) else settings.plan_period_days(plan)
         pro_until_iso = (datetime.now(timezone.utc) + timedelta(days=days)).isoformat()
     await supa.set_plan(user_id, plan, pro_until_iso)
     logbuffer.push_external("info", "admin", f"plan set to {plan} for {user_id}")

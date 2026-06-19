@@ -4,15 +4,19 @@ import { Crown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useSubscription } from "@/hooks/use-subscription";
 import { subscriptionStatus } from "@/lib/subscription";
+import { planLimits } from "@/lib/plans";
+import type { SubscriptionPlan } from "@/lib/types";
 
 /**
- * Self-contained PRO badge — renders only for paid users (null otherwise), so it
- * can be dropped next to any avatar across the app. Brand-gradient pill with a
- * crown, a soft glow, and a sweeping "shine" streak for a premium feel.
+ * Self-contained plan badge — renders only for paid users (null otherwise), so
+ * it can be dropped next to any avatar across the app. Shows the actual plan
+ * name ("Pro" / "Business"). Brand-gradient pill with a crown, a soft glow, and
+ * a sweeping "shine" streak for a premium feel.
  */
 export function ProBadge({ className }: { className?: string }) {
   const { plan, proUntil } = useSubscription();
   if (!subscriptionStatus(plan, proUntil).isPaid) return null;
+  const label = planLimits(plan as SubscriptionPlan).label;
 
   return (
     <span
@@ -27,7 +31,7 @@ export function ProBadge({ className }: { className?: string }) {
         className="pointer-events-none absolute inset-0 animate-shine bg-[linear-gradient(110deg,transparent_38%,rgba(255,255,255,0.6)_50%,transparent_62%)]"
       />
       <Crown className="relative h-3 w-3" strokeWidth={2.6} />
-      <span className="relative">Pro</span>
+      <span className="relative">{label}</span>
     </span>
   );
 }

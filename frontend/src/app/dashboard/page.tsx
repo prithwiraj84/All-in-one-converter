@@ -56,7 +56,7 @@ export default async function DashboardHome({
       {/* Keeps files/conversions/usage live (focus + interval + realtime). */}
       {data.loggedIn && <DashboardAutoRefresh />}
       {showExpiryWarning && (
-        <ExpiryBanner daysLeft={sub.daysLeft!} expiryLabel={sub.expiryLabel} />
+        <ExpiryBanner plan={data.plan} daysLeft={sub.daysLeft!} expiryLabel={sub.expiryLabel} />
       )}
       {view}
     </>

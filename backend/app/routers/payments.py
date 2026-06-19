@@ -59,7 +59,8 @@ def _verify_webhook_signature(raw_body: bytes, signature: str) -> bool:
 
 
 async def _grant_plan(user_id: str, plan: str) -> str:
-    until = (datetime.now(timezone.utc) + timedelta(days=settings.pro_period_days)).isoformat()
+    # Each plan has its own validity window (Pro 30d · Business 365d).
+    until = (datetime.now(timezone.utc) + timedelta(days=settings.plan_period_days(plan))).isoformat()
     await supa.set_plan(user_id, plan, until)
     return until
 
@@ -73,8 +74,8 @@ def config() -> dict:
         "currency": settings.razorpay_currency,
         "period_days": settings.pro_period_days,
         "plans": {
-            "pro": {"amount": settings.razorpay_pro_amount},
-            "business": {"amount": settings.razorpay_business_amount},
+            "pro": {"amount": settings.razorpay_pro_amount, "period_days": settings.pro_period_days},
+            "business": {"amount": settings.razorpay_business_amount, "period_days": settings.business_period_days},
         },
     }
 

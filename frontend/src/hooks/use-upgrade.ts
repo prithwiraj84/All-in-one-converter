@@ -61,6 +61,7 @@ export function useUpgrade() {
         return;
       }
       setLoading(true);
+      const planName = plan.charAt(0).toUpperCase() + plan.slice(1);
       try {
         const supabase = createClient();
         const { data } = await supabase.auth.getSession();
@@ -70,11 +71,11 @@ export function useUpgrade() {
           return;
         }
 
-        // Dev/testing mode (no Razorpay keys) → grant Pro instantly, no payment.
+        // Dev/testing mode (no Razorpay keys) → grant the plan instantly, no payment.
         const config = await getPaymentConfig();
         if (!config.enabled) {
           await devUpgrade(plan, token);
-          toast.success("Pro unlocked (test mode) — no payment needed 🎉");
+          toast.success(`${planName} unlocked (test mode) — no payment needed 🎉`);
           router.refresh();
           window.setTimeout(() => window.location.reload(), 1000);
           return;
@@ -92,14 +93,14 @@ export function useUpgrade() {
           currency: order.currency,
           order_id: order.order_id,
           name: "All in one converter",
-          description: `${plan.charAt(0).toUpperCase() + plan.slice(1)} plan`,
+          description: `${planName} plan`,
           prefill: { email: order.email ?? user.email ?? undefined },
           theme: { color: "#2563EB" },
           handler: async (resp: unknown) => {
             const r = resp as RazorpayResult;
             try {
               await verifyPayment(plan, r, token);
-              toast.success("You're on Pro now! 🎉 Enjoy the upgrade.");
+              toast.success(`You're on ${planName} now! 🎉 Enjoy the upgrade.`);
               router.refresh();
               window.setTimeout(() => window.location.reload(), 1200);
             } catch (err) {
