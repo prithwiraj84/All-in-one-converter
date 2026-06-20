@@ -1,6 +1,7 @@
 import type { SupabaseClient, User } from "@supabase/supabase-js";
 import type { SubscriptionPlan } from "./types";
 import { planLimits, type PlanLimits } from "./plans";
+import { API_BASE } from "./api";
 
 export interface DashFile {
   id: string;
@@ -38,6 +39,8 @@ export interface DashboardData {
   email: string | null;
   name: string | null;
   plan: SubscriptionPlan;
+  /** True only for a paying owner (false for a member who inherits Business). */
+  isOwner: boolean;
   /** When a paid plan lapses back to Free (ISO), or null. */
   proUntil: string | null;
   limits: PlanLimits;
@@ -64,6 +67,7 @@ function empty(loggedIn: boolean): DashboardData {
     email: null,
     name: null,
     plan: "free",
+    isOwner: false,
     proUntil: null,
     limits,
     files: [],
@@ -100,7 +104,27 @@ export async function getDashboardData(
       .gte("created_at", startOfTodayISO()),
   ]);
 
-  const plan = (profileRes.data?.plan as SubscriptionPlan | undefined) ?? "free";
+  // Effective plan = own plan upgraded to Business if on a Business team. Read
+  // it from the backend (authoritative); fall back to the profile's own plan.
+  let plan = (profileRes.data?.plan as SubscriptionPlan | undefined) ?? "free";
+  let isOwner = plan !== "free";
+  try {
+    const { data: sess } = await supabase.auth.getSession();
+    const token = sess.session?.access_token;
+    if (token) {
+      const r = await fetch(`${API_BASE}/api/me/plan`, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
+      if (r.ok) {
+        const me = (await r.json()) as { plan?: string; owner?: boolean };
+        plan = (me.plan as SubscriptionPlan) || plan;
+        isOwner = Boolean(me.owner);
+      }
+    }
+  } catch {
+    /* backend unavailable → keep the profile plan */
+  }
   const limits = planLimits(plan);
   const files = (filesRes.data ?? []) as DashFile[];
   const conversions = (conversionsRes.data ?? []) as DashConversion[];
@@ -121,6 +145,7 @@ export async function getDashboardData(
       (user.user_metadata?.full_name as string | undefined) ??
       null,
     plan,
+    isOwner,
     proUntil: (profileRes.data?.pro_until as string | undefined) ?? null,
     limits,
     files: activeFiles,

@@ -27,6 +27,7 @@ from app.routers import (
     health as health_router,
     jobs as jobs_router,
     keys as keys_router,
+    me as me_router,
     payments as payments_router,
     teams as teams_router,
 )
@@ -96,6 +97,7 @@ _OPEN_ROUTERS = {
     id(payments_router.router),
     id(keys_router.router),
     id(teams_router.router),
+    id(me_router.router),
     id(admin_router.router),
 }
 for router in all_routers:

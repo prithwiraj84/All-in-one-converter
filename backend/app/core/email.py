@@ -187,13 +187,14 @@ def _doc(
 
 
 # ── Senders ─────────────────────────────────────────────────────────
-async def _send_resend(to: str, subject: str, html: str) -> bool:
+async def _send_resend(to: str, subject: str, html: str, text: str) -> bool:
     try:
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.post(
                 "https://api.resend.com/emails",
                 headers={"Authorization": f"Bearer {settings.resend_api_key}", "Content-Type": "application/json"},
-                json={"from": settings.email_from, "to": [to], "subject": subject, "html": html},
+                # A plain-text part (multipart) materially improves deliverability.
+                json={"from": settings.email_from, "to": [to], "subject": subject, "html": html, "text": text},
             )
         if resp.status_code < 300:
             return True
@@ -203,12 +204,12 @@ async def _send_resend(to: str, subject: str, html: str) -> bool:
     return False
 
 
-def _smtp_send_blocking(to: str, subject: str, html: str) -> bool:
+def _smtp_send_blocking(to: str, subject: str, html: str, text: str) -> bool:
     msg = EmailMessage()
     msg["Subject"] = subject
     msg["From"] = settings.email_from
     msg["To"] = to
-    msg.set_content("Open this email in an HTML-capable client.")
+    msg.set_content(text)  # plain-text part
     msg.add_alternative(html, subtype="html")
     with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=20) as server:
         server.starttls()
@@ -218,20 +219,20 @@ def _smtp_send_blocking(to: str, subject: str, html: str) -> bool:
     return True
 
 
-async def _send_smtp(to: str, subject: str, html: str) -> bool:
+async def _send_smtp(to: str, subject: str, html: str, text: str) -> bool:
     try:
-        return await run_in_threadpool(_smtp_send_blocking, to, subject, html)
+        return await run_in_threadpool(_smtp_send_blocking, to, subject, html, text)
     except Exception:  # noqa: BLE001
         logger.warning("smtp send error", exc_info=True)
         return False
 
 
-async def _deliver(to: str, subject: str, html: str) -> bool:
+async def _deliver(to: str, subject: str, html: str, text: str) -> bool:
     if not to:
         return False
-    if settings.resend_api_key and await _send_resend(to, subject, html):
+    if settings.resend_api_key and await _send_resend(to, subject, html, text):
         return True
-    if settings.smtp_host and await _send_smtp(to, subject, html):
+    if settings.smtp_host and await _send_smtp(to, subject, html, text):
         return True
     return False
 
@@ -271,7 +272,11 @@ async def send_team_invite(to_email: str, team_name: str, inviter: str | None) -
         footer_reason="You received this because someone invited you to their team on All in one converter.",
     )
     subject = f"You're invited to {team_name} on All in one converter"
-    if await _deliver(to_email, subject, html):
+    text = (
+        f"You're invited to {team_name} on All in one converter.\n"
+        f"Sign in (or sign up) with this email to join and get Business access:\n{_app()}/signup"
+    )
+    if await _deliver(to_email, subject, html, text):
         return True
     from app.core import supa
 
@@ -298,7 +303,12 @@ async def send_purchase_thankyou(to_email: str, plan: str, until_iso: str | None
         cta_href=f"{_app()}/dashboard",
         footer_reason="You received this because you upgraded your plan on All in one converter.",
     )
-    return await _deliver(to_email, f"Thanks for upgrading to {label} 🎉", html)
+    text = (
+        f"Thanks for upgrading to {label}! Your plan is active"
+        + (f" until {until}" if until else "")
+        + f".\nOpen your dashboard: {_app()}/dashboard"
+    )
+    return await _deliver(to_email, f"Thanks for upgrading to {label} 🎉", html, text)
 
 
 async def send_expiry_reminder(to_email: str, plan: str, until_iso: str | None, days_left: int) -> bool:
@@ -320,4 +330,9 @@ async def send_expiry_reminder(to_email: str, plan: str, until_iso: str | None, 
         cta_href=f"{_app()}/dashboard?tab=settings",
         footer_reason="You received this because your paid plan on All in one converter is about to expire.",
     )
-    return await _deliver(to_email, f"Your {label} plan expires {when}", html)
+    text = (
+        f"Your {label} plan expires {when}"
+        + (f" (on {until})" if until else "")
+        + f".\nRenew to keep your benefits: {_app()}/dashboard?tab=settings"
+    )
+    return await _deliver(to_email, f"Your {label} plan expires {when}", html, text)

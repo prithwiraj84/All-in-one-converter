@@ -144,11 +144,12 @@ function NavList({
 }
 
 function UpgradeCard() {
-  const { plan, proUntil, ready } = useSubscription();
+  const { plan, proUntil, owner, ready } = useSubscription();
   const { isPaid, daysLeft, expiryLabel } = subscriptionStatus(plan, proUntil);
   const label = planLimits(plan as SubscriptionPlan).label;
 
-  // Paid plan → show subscription status + Renew (no upgrade/pricing prompts).
+  // Paid plan → show subscription status. Owners get Renew; members (who inherit
+  // access via a team) just see that it's active.
   if (ready && isPaid) {
     return (
       <div className="gradient-border shadow-card">
@@ -157,17 +158,23 @@ function UpgradeCard() {
             <Sparkles className="h-3 w-3" />
             {label} active
           </div>
-          <p className="text-sm font-semibold leading-snug text-foreground">
-            {daysLeft != null ? `${daysLeft} day${daysLeft === 1 ? "" : "s"} left` : `${label} plan active`}
-          </p>
-          {expiryLabel && (
-            <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
-              Renews on {expiryLabel}
+          {owner ? (
+            <>
+              <p className="text-sm font-semibold leading-snug text-foreground">
+                {daysLeft != null ? `${daysLeft} day${daysLeft === 1 ? "" : "s"} left` : `${label} plan active`}
+              </p>
+              {expiryLabel && (
+                <p className="mt-1 text-xs leading-relaxed text-muted-foreground">Renews on {expiryLabel}</p>
+              )}
+              <UpgradeButton plan={plan} variant="gradient" size="sm" className="mt-3 w-full">
+                Renew {label}
+              </UpgradeButton>
+            </>
+          ) : (
+            <p className="text-xs leading-relaxed text-muted-foreground">
+              You have {label} access through your team.
             </p>
           )}
-          <UpgradeButton plan={plan} variant="gradient" size="sm" className="mt-3 w-full">
-            Renew {label}
-          </UpgradeButton>
         </div>
       </div>
     );

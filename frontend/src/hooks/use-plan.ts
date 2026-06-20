@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { SubscriptionPlan } from "@/lib/types";
 import { planLimits, type PlanLimits } from "@/lib/plans";
 import { createClient, isSupabaseConfigured } from "@/lib/supabase/client";
+import { getMyPlan } from "@/lib/business-api";
 import { startOfTodayISO } from "@/lib/conversions";
 import { useUser } from "./use-user";
 
@@ -42,7 +43,9 @@ export function usePlan(): PlanUsage {
     let cancelled = false;
     (async () => {
       const supabase = createClient();
-      const [profileRes, tasksRes, filesRes] = await Promise.all([
+      const [me, profileRes, tasksRes, filesRes] = await Promise.all([
+        // Effective plan (Business via team inheritance), with a profile fallback.
+        getMyPlan().catch(() => null),
         supabase.from("profiles").select("plan").eq("id", user.id).maybeSingle(),
         supabase
           .from("conversions")
@@ -52,7 +55,9 @@ export function usePlan(): PlanUsage {
       ]);
       if (cancelled) return;
 
-      const p = (profileRes.data?.plan as SubscriptionPlan | undefined) ?? "free";
+      const p = ((me?.plan as SubscriptionPlan | undefined) ??
+        (profileRes.data?.plan as SubscriptionPlan | undefined) ??
+        "free");
       setPlan(p);
       setTasksToday(tasksRes.count ?? 0);
 

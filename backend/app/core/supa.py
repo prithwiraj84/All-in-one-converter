@@ -11,7 +11,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import httpx
 
@@ -712,6 +712,85 @@ async def effective_plan(user_id: str, email: str | None = None) -> str:
     if plan != "free":
         return plan
     return (await team_plan_for(user_id, email)) or "free"
+
+
+async def is_paying_owner(user_id: str) -> bool:
+    """True if the user has their OWN active paid subscription (i.e. they pay) —
+    distinguishes a real owner from a member who only inherits Business access."""
+    if not is_configured():
+        return False
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            resp = await client.get(
+                f"{settings.supabase_url}/rest/v1/subscriptions",
+                params={
+                    "user_id": f"eq.{user_id}",
+                    "plan": "neq.free",
+                    "status": "eq.active",
+                    "select": "plan",
+                    "limit": "1",
+                },
+                headers=_rest_headers(),
+            )
+        return bool(resp.json())
+    except Exception:  # noqa: BLE001
+        logger.warning("is_paying_owner failed", exc_info=True)
+        return False
+
+
+async def get_pro_until(user_id: str) -> str | None:
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            resp = await client.get(
+                f"{settings.supabase_url}/rest/v1/profiles",
+                params={"id": f"eq.{user_id}", "select": "pro_until", "limit": "1"},
+                headers=_rest_headers(),
+            )
+        rows = resp.json()
+        return rows[0].get("pro_until") if rows else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+async def get_team(team_id: str) -> dict | None:
+    if not is_configured():
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            resp = await client.get(
+                f"{settings.supabase_url}/rest/v1/teams",
+                params={"id": f"eq.{team_id}", "select": "id,name,owner_id,created_at", "limit": "1"},
+                headers=_rest_headers(),
+            )
+        rows = resp.json()
+        return rows[0] if rows else None
+    except Exception:  # noqa: BLE001
+        logger.warning("get_team failed", exc_info=True)
+        return None
+
+
+async def admin_membership_team(user_id: str) -> str | None:
+    """team_id of a team where the user is an ACTIVE admin member (or None)."""
+    if not is_configured():
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            resp = await client.get(
+                f"{settings.supabase_url}/rest/v1/team_members",
+                params={
+                    "user_id": f"eq.{user_id}",
+                    "role": "eq.admin",
+                    "status": "eq.active",
+                    "select": "team_id",
+                    "limit": "1",
+                },
+                headers=_rest_headers(),
+            )
+        rows = resp.json()
+        return rows[0]["team_id"] if rows else None
+    except Exception:  # noqa: BLE001
+        logger.warning("admin_membership_team failed", exc_info=True)
+        return None
 
 
 async def expiring_profiles(days: int) -> list[dict]:

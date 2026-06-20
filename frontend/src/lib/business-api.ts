@@ -37,6 +37,19 @@ async function detail(res: Response, fallback: string): Promise<string> {
   }
 }
 
+/* ── Effective plan (own plan, upgraded to Business via team membership) ── */
+export interface MePlan {
+  plan: string;
+  owner: boolean; // true only for a paying owner (not an inherited member)
+  pro_until: string | null;
+}
+
+export async function getMyPlan(): Promise<MePlan> {
+  const res = await authFetch("/api/me/plan");
+  if (!res.ok) throw new Error(await detail(res, "Couldn't load your plan."));
+  return res.json();
+}
+
 /* ── REST API keys ──────────────────────────────────────────────── */
 export interface ApiKey {
   id: string;
@@ -89,9 +102,10 @@ export interface Membership {
   status: string | null;
 }
 export interface TeamState {
-  owned: { team: Team; members: TeamMember[] } | null;
+  /** The team the user can manage (their own if owner, else a team they admin). */
+  managed: { team: Team; members: TeamMember[] } | null;
   memberships: Membership[];
-  is_business_owner: boolean;
+  is_owner: boolean;
 }
 
 export async function getTeam(): Promise<TeamState> {

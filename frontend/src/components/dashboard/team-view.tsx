@@ -44,9 +44,9 @@ export function TeamView() {
     try {
       const s = await getTeam();
       setState(s);
-      if (s.owned) setTeamName(s.owned.team.name);
+      if (s.managed) setTeamName(s.managed.team.name);
     } catch {
-      setState({ owned: null, memberships: [], is_business_owner: false });
+      setState({ managed: null, memberships: [], is_owner: false });
     }
   }, []);
 
@@ -112,8 +112,8 @@ export function TeamView() {
     );
   }
 
-  // Not a Business owner and not on any team → upsell.
-  if (!state.owned && state.memberships.length === 0) {
+  // Not a Business owner/admin and not on any team → upsell.
+  if (!state.managed && state.memberships.length === 0) {
     return (
       <div>
         <h1 className="font-display text-3xl font-bold tracking-tight">Team</h1>
@@ -140,12 +140,12 @@ export function TeamView() {
         </p>
       </div>
 
-      {/* Owner's workspace */}
-      {state.owned && (
+      {/* Managed workspace (owner or admin) */}
+      {state.managed && (
         <Card>
           <CardHeader className="flex-row items-center justify-between space-y-0">
             <CardTitle className="flex items-center gap-2">
-              {editingName ? (
+              {editingName && state.is_owner ? (
                 <>
                   <input
                     className={inputCls + " max-w-[14rem]"}
@@ -162,14 +162,16 @@ export function TeamView() {
               ) : (
                 <>
                   <Users className="h-5 w-5 text-primary" />
-                  {state.owned.team.name}
-                  <button onClick={() => setEditingName(true)} className="text-muted-foreground hover:text-foreground">
-                    <Pencil className="h-3.5 w-3.5" />
-                  </button>
+                  {state.managed.team.name}
+                  {state.is_owner && (
+                    <button onClick={() => setEditingName(true)} className="text-muted-foreground hover:text-foreground">
+                      <Pencil className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </>
               )}
             </CardTitle>
-            <span className="text-xs text-muted-foreground">{state.owned.members.length} members</span>
+            <span className="text-xs text-muted-foreground">{state.managed.members.length} members</span>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Invite */}
@@ -194,14 +196,15 @@ export function TeamView() {
 
             {/* Members */}
             <ul className="divide-y divide-border rounded-xl border border-border">
-              {/* Owner (you) */}
-              <li className="flex items-center gap-3 px-3.5 py-2.5">
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-sm font-semibold">You (owner)</p>
-                </div>
-                <RoleBadge role="owner" />
-              </li>
-              {state.owned.members.map((m) => (
+              {state.is_owner && (
+                <li className="flex items-center gap-3 px-3.5 py-2.5">
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold">You (owner)</p>
+                  </div>
+                  <RoleBadge role="owner" />
+                </li>
+              )}
+              {state.managed.members.map((m) => (
                 <li key={m.id} className="flex items-center gap-3 px-3.5 py-2.5">
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{m.email}</p>
@@ -227,7 +230,7 @@ export function TeamView() {
                   </Button>
                 </li>
               ))}
-              {state.owned.members.length === 0 && (
+              {state.managed.members.length === 0 && (
                 <li className="px-3.5 py-6 text-center text-sm text-muted-foreground">
                   No members yet — invite a teammate above.
                 </li>

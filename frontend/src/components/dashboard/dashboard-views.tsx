@@ -549,7 +549,7 @@ export function SettingsView({ data }: { data: DashboardData }) {
             <UpgradeButton variant="gradient" className="mt-5 w-full">
               <Sparkles className="h-4 w-4" /> Upgrade to Pro — 2 GB storage, 1 GB files, unlimited tasks
             </UpgradeButton>
-          ) : (
+          ) : data.isOwner ? (
             <div className="mt-5 space-y-3 rounded-xl border border-border bg-surface/50 p-4">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">Subscription</span>
@@ -566,6 +566,11 @@ export function SettingsView({ data }: { data: DashboardData }) {
               <UpgradeButton plan={plan} variant="gradient" className="w-full">
                 <Sparkles className="h-4 w-4" /> Renew {limits.label} subscription
               </UpgradeButton>
+            </div>
+          ) : (
+            <div className="mt-5 rounded-xl border border-border bg-surface/50 p-4 text-sm text-muted-foreground">
+              <span className="font-medium text-foreground">{limits.label} access via your team.</span> Your
+              team owner manages this subscription — you get all {limits.label} limits automatically.
             </div>
           )}
         </CardContent>
