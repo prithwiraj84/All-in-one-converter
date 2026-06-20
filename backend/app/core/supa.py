@@ -8,6 +8,7 @@ explicit 200 vs 401 from the Auth endpoint when validating a user token.
 """
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 import secrets
@@ -111,6 +112,13 @@ async def set_plan(user_id: str, plan: str, pro_until_iso: str | None) -> None:
     except Exception:
         logger.warning("set_plan failed", exc_info=True)
         raise
+    # Provision the owner's team workspace up front so even conversions made
+    # before they open the Team tab are tagged into shared files (best-effort).
+    if plan == "business":
+        try:
+            await get_or_create_team(user_id)
+        except Exception:  # noqa: BLE001
+            pass
 
 
 async def count_tasks_today(user_id: str) -> int | None:
@@ -325,40 +333,41 @@ async def record_conversion(
     download_url: str | None,
     mime: str | None,
     retention_minutes: int,
+    team_id: str | None = None,
 ) -> None:
-    """Insert the conversion (+ output file) rows. Best-effort."""
-    from datetime import timedelta
-
+    """Insert the conversion (+ output file) rows. Best-effort. When the user
+    belongs to a team, both rows are tagged with `team_id` so the team can see
+    the shared file (and the converter used)."""
     now = datetime.now(timezone.utc)
     headers = {**_rest_headers(), "Content-Type": "application/json", "Prefer": "return=minimal"}
+    conv = {
+        "user_id": user_id,
+        "tool": tool,
+        "source_file": source_file,
+        "output_file": output_filename,
+        "status": "completed",
+        "completed_at": now.isoformat(),
+    }
+    file_row = {
+        "user_id": user_id,
+        "filename": output_filename,
+        "size": output_size or 0,
+        "type": mime,
+        "status": "ready",
+        "storage_path": download_url,
+        "expires_at": (now + timedelta(minutes=retention_minutes)).isoformat(),
+    }
+    # Only add the team columns when there's a team — so a not-yet-migrated DB
+    # never breaks normal (non-team) history recording.
+    if team_id:
+        conv["team_id"] = team_id
+        file_row["team_id"] = team_id
+        file_row["tool"] = tool
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
-            await client.post(
-                f"{settings.supabase_url}/rest/v1/conversions",
-                headers=headers,
-                json={
-                    "user_id": user_id,
-                    "tool": tool,
-                    "source_file": source_file,
-                    "output_file": output_filename,
-                    "status": "completed",
-                    "completed_at": now.isoformat(),
-                },
-            )
+            await client.post(f"{settings.supabase_url}/rest/v1/conversions", headers=headers, json=conv)
             if output_filename:
-                await client.post(
-                    f"{settings.supabase_url}/rest/v1/files",
-                    headers=headers,
-                    json={
-                        "user_id": user_id,
-                        "filename": output_filename,
-                        "size": output_size or 0,
-                        "type": mime,
-                        "status": "ready",
-                        "storage_path": download_url,
-                        "expires_at": (now + timedelta(minutes=retention_minutes)).isoformat(),
-                    },
-                )
+                await client.post(f"{settings.supabase_url}/rest/v1/files", headers=headers, json=file_row)
     except Exception:
         logger.warning("record_conversion failed", exc_info=True)
 
@@ -791,6 +800,176 @@ async def admin_membership_team(user_id: str) -> str | None:
     except Exception:  # noqa: BLE001
         logger.warning("admin_membership_team failed", exc_info=True)
         return None
+
+
+async def user_team_id(user_id: str) -> str | None:
+    """The team this user belongs to — their owned workspace, else a team they're
+    a member of. Used to tag conversions/files for the shared team files view."""
+    if not is_configured() or not user_id:
+        return None
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            owned = await client.get(
+                f"{settings.supabase_url}/rest/v1/teams",
+                params={"owner_id": f"eq.{user_id}", "select": "id", "limit": "1"},
+                headers=_rest_headers(),
+            )
+            rows = owned.json()
+            if rows:
+                return rows[0]["id"]
+            mem = await client.get(
+                f"{settings.supabase_url}/rest/v1/team_members",
+                params={"user_id": f"eq.{user_id}", "select": "team_id", "limit": "1"},
+                headers=_rest_headers(),
+            )
+            mrows = mem.json()
+            return mrows[0]["team_id"] if mrows else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+async def team_files(team_id: str, limit: int = 100) -> list[dict]:
+    """Non-expired output files shared across a team, enriched with the converter
+    (tool) and the member's email. Powers the shared 'Team files' view."""
+    if not is_configured() or not team_id:
+        return []
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            resp = await client.get(
+                f"{settings.supabase_url}/rest/v1/files",
+                params={
+                    "team_id": f"eq.{team_id}",
+                    "select": "id,filename,size,type,tool,storage_path,created_at,expires_at,user_id",
+                    "order": "created_at.desc",
+                    "limit": str(min(max(limit, 1), 300)),
+                },
+                headers=_rest_headers(),
+            )
+            rows = resp.json()
+            now = datetime.now(timezone.utc)
+            active = []
+            for r in rows:
+                exp = r.get("expires_at")
+                if exp and datetime.fromisoformat(exp.replace("Z", "+00:00")) <= now:
+                    continue
+                active.append(r)
+            uids = list({r["user_id"] for r in active if r.get("user_id")})
+            emails: dict[str, str | None] = {}
+            if uids:
+                pres = await client.get(
+                    f"{settings.supabase_url}/rest/v1/profiles",
+                    params={"id": f"in.({','.join(uids)})", "select": "id,email"},
+                    headers=_rest_headers(),
+                )
+                emails = {p["id"]: p.get("email") for p in pres.json()}
+            for r in active:
+                r["member_email"] = emails.get(r.get("user_id"))
+            return active
+    except Exception:  # noqa: BLE001
+        logger.warning("team_files failed", exc_info=True)
+        return []
+
+
+async def record_api_request(user_id: str, key_id: str | None, tool: str | None, status_code: int) -> None:
+    """Log one REST-API request for usage analytics. Best-effort."""
+    if not is_configured() or not user_id:
+        return
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            await client.post(
+                f"{settings.supabase_url}/rest/v1/api_requests",
+                headers={**_rest_headers(), "Content-Type": "application/json", "Prefer": "return=minimal"},
+                json={"user_id": user_id, "key_id": key_id, "tool": tool, "status": int(status_code)},
+            )
+    except Exception:  # noqa: BLE001
+        logger.warning("record_api_request failed", exc_info=True)
+
+
+# Strong refs so fire-and-forget logging tasks aren't GC'd before they run
+# (the event loop only keeps a weak reference to bare create_task tasks).
+_bg_tasks: set = set()
+
+
+def log_api_request_bg(user_id: str | None, key_id: str | None, tool: str | None, status_code: int) -> None:
+    """Fire-and-forget API-request logging that won't slow the response and won't
+    be garbage-collected mid-flight."""
+    if not user_id:
+        return
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:  # no running loop (e.g. sync test context)
+        return
+    task = loop.create_task(record_api_request(user_id, key_id, tool, status_code))
+    _bg_tasks.add(task)
+    task.add_done_callback(_bg_tasks.discard)
+
+
+async def api_usage_stats(user_id: str, days: int = 30) -> dict:
+    """Aggregate REST-API usage for a user over the last `days`: totals, errors,
+    success rate, peak RPM/RPD, and per-tool / per-key breakdowns."""
+    from collections import Counter
+
+    empty = {
+        "total": 0, "errors": 0, "success_rate": 1.0, "peak_rpm": 0, "peak_rpd": 0,
+        "per_tool": [], "per_key": [], "days": days,
+    }
+    if not is_configured():
+        return empty
+    try:
+        since = (datetime.now(timezone.utc) - timedelta(days=max(1, days))).isoformat()
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            resp = await client.get(
+                f"{settings.supabase_url}/rest/v1/api_requests",
+                params={
+                    "user_id": f"eq.{user_id}",
+                    "created_at": f"gte.{since}",
+                    "select": "tool,status,key_id,created_at",
+                    "order": "created_at.desc",
+                    "limit": "50000",
+                },
+                headers=_rest_headers(),
+            )
+            rows = resp.json()
+        total = len(rows)
+        if total == 0:
+            return empty
+        errors = sum(1 for r in rows if int(r.get("status") or 0) >= 400)
+        tool_c = Counter((r.get("tool") or "unknown") for r in rows)
+        key_c = Counter((r.get("key_id") or "") for r in rows)
+        minute_c = Counter((r.get("created_at") or "")[:16] for r in rows)  # YYYY-MM-DDTHH:MM
+        day_c = Counter((r.get("created_at") or "")[:10] for r in rows)     # YYYY-MM-DD
+
+        names: dict[str, str] = {}
+        key_ids = [k for k in key_c if k]
+        if key_ids:
+            async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+                kres = await client.get(
+                    f"{settings.supabase_url}/rest/v1/api_keys",
+                    params={"id": f"in.({','.join(key_ids)})", "select": "id,name,key_prefix"},
+                    headers=_rest_headers(),
+                )
+                names = {k["id"]: (k.get("name") or k.get("key_prefix") or "key") for k in kres.json()}
+
+        per_key = sorted(
+            ({"name": names.get(k) or ("Deleted key" if k else "Unknown"), "count": v} for k, v in key_c.items()),
+            key=lambda x: x["count"], reverse=True,
+        )
+        per_tool = sorted(
+            ({"tool": t, "count": v} for t, v in tool_c.items()), key=lambda x: x["count"], reverse=True
+        )
+        return {
+            "total": total,
+            "errors": errors,
+            "success_rate": round((total - errors) / total, 4),
+            "peak_rpm": max(minute_c.values()),
+            "peak_rpd": max(day_c.values()),
+            "per_tool": per_tool[:20],
+            "per_key": per_key[:20],
+            "days": days,
+        }
+    except Exception:  # noqa: BLE001
+        logger.warning("api_usage_stats failed", exc_info=True)
+        return empty
 
 
 async def expiring_profiles(days: int) -> list[dict]:

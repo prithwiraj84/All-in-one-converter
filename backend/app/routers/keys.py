@@ -34,6 +34,12 @@ async def create_key(body: CreateKeyIn, user: dict = Depends(require_business)) 
     return key  # includes the full `key` — shown to the user only this once
 
 
+@router.get("/usage")
+async def usage(user: dict = Depends(require_business), days: int = 30) -> dict:
+    """API usage analytics: totals, errors, success rate, peak RPM/RPD, per-tool, per-key."""
+    return await supa.api_usage_stats(user["id"], days=min(max(days, 1), 90))
+
+
 @router.delete("/{key_id}")
 async def delete_key(key_id: str, user: dict = Depends(require_business)) -> dict:
     if not await supa.revoke_api_key(user["id"], key_id):

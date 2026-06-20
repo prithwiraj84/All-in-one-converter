@@ -35,70 +35,87 @@ async def run_job(
     if len(files) < min_files:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Please upload at least {min_files} file(s).")
 
-    for f in files:
-        validate_upload(f, allowed_exts=allowed_exts)
-
-    # Per-file size cap follows the caller's plan (Free 10 MB · Pro 1 GB),
-    # bounded by the absolute server ceiling. enforce_quota set the context.
+    # enforce_quota set the context (plan, API-key flags, tool for attribution).
     ctx = current_quota()
-    plan_label = ctx.limits.label if ctx else "Free"
-    max_bytes = min(ctx.limits.max_file_bytes, settings.max_upload_bytes) if ctx else settings.max_upload_bytes
-
-    retention = retention_minutes_for(ctx.plan if ctx else "free")
-
-    job_id = new_job_id()
-    out_dir = job_dir(job_id)
-    in_dir = out_dir / "in"
-    # Stamp the per-plan retention so the cleanup loop deletes this job at the
-    # right time (Free 60 min · Pro/Business 1 day), not the global default.
-    try:
-        (out_dir / ".retain").write_text(str(retention))
-    except OSError:
-        pass
-
-    saved: list[Path] = []
+    api_status = 200
     try:
         for f in files:
-            path = await save_upload(f, in_dir)
-            if path.stat().st_size > max_bytes:
-                raise HTTPException(
-                    status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
-                    f"'{path.name}' exceeds the {fmt_bytes(max_bytes)} per-file limit on the {plan_label} plan.",
-                )
-            if not scan_for_malware(path):
-                raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "File failed the security scan.")
-            saved.append(path)
+            validate_upload(f, allowed_exts=allowed_exts)
 
-        # Bind a progress reporter (if the client opted in via X-Job-Id) so long
-        # services can stream a real percentage. The ContextVar is copied into
-        # the threadpool worker by anyio; report() is a no-op when nothing's bound.
-        progress_id = ctx.progress_id if ctx else None
-        token = progress.bind(progress_id) if progress_id else None
-        try:
-            # Services are synchronous (CPU / subprocess) — keep the event loop free.
-            result = await run_in_threadpool(runner, job_id, saved, out_dir)
-        finally:
-            if progress_id:
-                progress.finish(progress_id, ok=True)
-                progress.unbind(token)
-    except HTTPException:
-        shutil.rmtree(out_dir, ignore_errors=True)
-        raise
+        # Per-file size cap follows the caller's plan (Free 10 MB · Pro 1 GB),
+        # bounded by the absolute server ceiling.
+        plan_label = ctx.limits.label if ctx else "Free"
+        max_bytes = min(ctx.limits.max_file_bytes, settings.max_upload_bytes) if ctx else settings.max_upload_bytes
+        retention = retention_minutes_for(ctx.plan if ctx else "free")
 
-    # Authoritative history + usage: record for signed-in users (best-effort).
-    if ctx and ctx.user_id and result.status == "completed":
+        job_id = new_job_id()
+        out_dir = job_dir(job_id)
+        in_dir = out_dir / "in"
+        # Stamp the per-plan retention so the cleanup loop deletes this job at the
+        # right time (Free 60 min · Pro/Business 1 day), not the global default.
         try:
-            await supa.record_conversion(
-                ctx.user_id,
-                tool=ctx.tool or result.tool,
-                source_file=saved[0].name if saved else None,
-                output_filename=result.output_filename,
-                output_size=result.output_size,
-                download_url=result.download_url,
-                mime=guess_mime(result.output_filename),
-                retention_minutes=retention,
-            )
-        except Exception:  # noqa: BLE001 - history must never break a job
+            (out_dir / ".retain").write_text(str(retention))
+        except OSError:
             pass
 
-    return result
+        saved: list[Path] = []
+        try:
+            for f in files:
+                path = await save_upload(f, in_dir)
+                if path.stat().st_size > max_bytes:
+                    raise HTTPException(
+                        status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        f"'{path.name}' exceeds the {fmt_bytes(max_bytes)} per-file limit on the {plan_label} plan.",
+                    )
+                if not scan_for_malware(path):
+                    raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "File failed the security scan.")
+                saved.append(path)
+
+            # Bind a progress reporter (if the client opted in via X-Job-Id) so long
+            # services can stream a real percentage. The ContextVar is copied into
+            # the threadpool worker by anyio; report() is a no-op when nothing's bound.
+            progress_id = ctx.progress_id if ctx else None
+            token = progress.bind(progress_id) if progress_id else None
+            try:
+                # Services are synchronous (CPU / subprocess) — keep the event loop free.
+                result = await run_in_threadpool(runner, job_id, saved, out_dir)
+            finally:
+                if progress_id:
+                    progress.finish(progress_id, ok=True)
+                    progress.unbind(token)
+        except HTTPException:
+            shutil.rmtree(out_dir, ignore_errors=True)
+            raise
+
+        # Authoritative history + usage: record for signed-in users (best-effort).
+        # Team members/owners (effective Business) tag the file so the team can
+        # see it in the shared "Team files" view, with the converter name.
+        if ctx and ctx.user_id and result.status == "completed":
+            team_id = await supa.user_team_id(ctx.user_id) if ctx.plan == "business" else None
+            try:
+                await supa.record_conversion(
+                    ctx.user_id,
+                    tool=ctx.tool or result.tool,
+                    source_file=saved[0].name if saved else None,
+                    output_filename=result.output_filename,
+                    output_size=result.output_size,
+                    download_url=result.download_url,
+                    mime=guess_mime(result.output_filename),
+                    retention_minutes=retention,
+                    team_id=team_id,
+                )
+            except Exception:  # noqa: BLE001 - history must never break a job
+                pass
+
+        return result
+    except HTTPException as exc:
+        api_status = exc.status_code
+        raise
+    except Exception:
+        api_status = 500
+        raise
+    finally:
+        # Log REST-API requests (success + error) for usage analytics — fire and
+        # forget (retained internally so it isn't GC'd) so it never slows the response.
+        if ctx and ctx.via_api_key and ctx.user_id:
+            supa.log_api_request_bg(ctx.user_id, ctx.api_key_id, ctx.tool, api_status)

@@ -62,6 +62,18 @@ async def my_team(user: dict = Depends(require_user)) -> dict:
     return {"managed": managed, "memberships": memberships, "is_owner": is_owner}
 
 
+@router.get("/files")
+async def shared_files(user: dict = Depends(require_user)) -> dict:
+    """Files shared across the user's team (with the converter used + member).
+    Gated on current Business entitlement so access drops if the owner lapses."""
+    if await supa.effective_plan(user["id"], user.get("email")) != "business":
+        return {"team_id": None, "files": []}
+    team_id = await supa.user_team_id(user["id"])
+    if not team_id:
+        return {"team_id": None, "files": []}
+    return {"team_id": team_id, "files": await supa.team_files(team_id)}
+
+
 @router.patch("/me")
 async def rename_team(body: RenameIn, user: dict = Depends(require_user)) -> dict:
     if not await supa.is_paying_owner(user["id"]):

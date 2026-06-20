@@ -2,7 +2,17 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { KeyRound, Copy, Trash2, Plus, Loader2, ExternalLink, ShieldCheck, TriangleAlert } from "lucide-react";
+import {
+  KeyRound,
+  Copy,
+  Trash2,
+  Plus,
+  Loader2,
+  ExternalLink,
+  ShieldCheck,
+  TriangleAlert,
+  Activity,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,13 +20,89 @@ import {
   listApiKeys,
   createApiKey,
   revokeApiKey,
+  getApiUsage,
   type ApiKey,
   type NewApiKey,
+  type ApiUsage,
 } from "@/lib/business-api";
 
 function fmtDate(s?: string | null): string {
   if (!s) return "never";
   return new Date(s).toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" });
+}
+
+/* ── API usage analytics ────────────────────────────────────────── */
+function Metric({ label, value, sub }: { label: string; value: string; sub?: string }) {
+  return (
+    <div className="rounded-xl border border-border bg-card p-4">
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
+      <p className="mt-1 font-display text-2xl font-bold tracking-tight">{value}</p>
+      {sub && <p className="mt-0.5 text-xs text-muted-foreground">{sub}</p>}
+    </div>
+  );
+}
+
+function UsageBars({ title, items }: { title: string; items: { label: string; count: number }[] }) {
+  if (items.length === 0) return null;
+  const max = Math.max(1, ...items.map((i) => i.count));
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-2.5">
+          {items.map((i) => (
+            <div key={i.label} className="flex items-center gap-3">
+              <span className="w-40 shrink-0 truncate font-mono text-xs text-muted-foreground">{i.label}</span>
+              <div className="h-2.5 flex-1 overflow-hidden rounded-full bg-muted">
+                <div className="h-full rounded-full bg-brand-gradient" style={{ width: `${(i.count / max) * 100}%` }} />
+              </div>
+              <span className="w-14 shrink-0 text-right text-sm font-semibold">{i.count.toLocaleString()}</span>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function ApiUsageSection() {
+  const [u, setU] = React.useState<ApiUsage | null>(null);
+  const [loaded, setLoaded] = React.useState(false);
+  React.useEffect(() => {
+    getApiUsage()
+      .then(setU)
+      .catch(() => setU(null))
+      .finally(() => setLoaded(true));
+  }, []);
+
+  if (!loaded) return null;
+  if (!u || u.total === 0) {
+    return (
+      <Card className="p-5">
+        <p className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Activity className="h-4 w-4" /> No API requests yet — usage analytics appear here once you start calling the API.
+        </p>
+      </Card>
+    );
+  }
+  const successPct = Math.round(u.success_rate * 100);
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <Metric label="Total requests" value={u.total.toLocaleString()} sub={`last ${u.days} days`} />
+        <Metric label="Success rate" value={`${successPct}%`} sub={`${u.errors.toLocaleString()} errors`} />
+        <Metric label="Total errors" value={u.errors.toLocaleString()} />
+        <Metric label="Peak RPM" value={u.peak_rpm.toLocaleString()} sub="requests / min" />
+        <Metric label="Peak RPD" value={u.peak_rpd.toLocaleString()} sub="requests / day" />
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        <UsageBars title="Requests per tool" items={u.per_tool.map((t) => ({ label: t.tool, count: t.count }))} />
+        <UsageBars title="Requests per key" items={u.per_key.map((k) => ({ label: k.name, count: k.count }))} />
+      </div>
+    </div>
+  );
 }
 
 const inputCls =
@@ -101,6 +187,12 @@ export function ApiKeysView() {
             API docs <ExternalLink className="h-3.5 w-3.5" />
           </Link>
         </Button>
+      </div>
+
+      {/* Usage analytics */}
+      <div>
+        <h2 className="mb-3 font-display text-lg font-semibold">Usage</h2>
+        <ApiUsageSection />
       </div>
 
       {/* Freshly created key — shown once */}

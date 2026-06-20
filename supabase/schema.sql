@@ -53,6 +53,10 @@ create table if not exists public.files (
   expires_at    timestamptz
 );
 create index if not exists files_user_id_idx on public.files (user_id, created_at desc);
+-- Shared team workspace: tag each output file with the team + the converter used.
+alter table public.files add column if not exists team_id uuid;
+alter table public.files add column if not exists tool text;
+create index if not exists files_team_id_idx on public.files (team_id, created_at desc);
 
 -- ── conversions ────────────────────────────────────────────────────────────
 create table if not exists public.conversions (
@@ -67,6 +71,8 @@ create table if not exists public.conversions (
   completed_at  timestamptz
 );
 create index if not exists conversions_user_id_idx on public.conversions (user_id, created_at desc);
+-- Tag conversions to a team so members can see shared activity (optional).
+alter table public.conversions add column if not exists team_id uuid;
 
 -- ── subscriptions ──────────────────────────────────────────────────────────
 create table if not exists public.subscriptions (
@@ -201,10 +207,27 @@ create unique index if not exists team_members_team_email_idx on public.team_mem
 create index if not exists team_members_email_idx on public.team_members (lower(email));
 create index if not exists team_members_user_id_idx on public.team_members (user_id);
 
+-- ── api_requests ────────────────────────────────────────────────────────────
+-- One row per REST-API-authenticated request (for usage analytics: totals,
+-- errors, success rate, peak RPM/RPD, per-tool, per-key). Written by the backend.
+create table if not exists public.api_requests (
+  id          uuid primary key default gen_random_uuid(),
+  user_id     uuid not null references auth.users (id) on delete cascade,
+  key_id      uuid references public.api_keys (id) on delete set null,
+  tool        text,
+  status      int not null default 200,
+  created_at  timestamptz not null default now()
+);
+create index if not exists api_requests_user_created_idx on public.api_requests (user_id, created_at desc);
+
 -- RLS on (service-role bypasses; these allow a signed-in user to read their own).
 alter table public.api_keys     enable row level security;
 alter table public.teams        enable row level security;
 alter table public.team_members enable row level security;
+alter table public.api_requests enable row level security;
+
+drop policy if exists "api_requests_select_own" on public.api_requests;
+create policy "api_requests_select_own" on public.api_requests for select using (auth.uid() = user_id);
 
 drop policy if exists "api_keys_select_own" on public.api_keys;
 create policy "api_keys_select_own" on public.api_keys for select using (auth.uid() = user_id);

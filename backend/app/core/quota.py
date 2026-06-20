@@ -61,6 +61,8 @@ class QuotaContext:
     limits: PlanLimits
     tool: str | None
     progress_id: str | None = None
+    via_api_key: bool = False
+    api_key_id: str | None = None
 
 
 _quota_ctx: contextvars.ContextVar[QuotaContext | None] = contextvars.ContextVar(
@@ -128,7 +130,9 @@ async def require_business_owner(request: Request) -> dict:
 async def enforce_quota(request: Request) -> QuotaContext:
     """FastAPI dependency: authenticate + enforce per-user quotas."""
     token = _bearer(request)
-    tool = request.headers.get("x-tool-slug")
+    # Web requests send the friendly slug; API requests don't, so fall back to the
+    # endpoint path (e.g. "pdf/merge") for usage attribution.
+    tool = request.headers.get("x-tool-slug") or request.url.path.replace("/api/", "", 1) or None
     # Client-generated id used only to stream this job's progress (not a secret).
     pid = (request.headers.get("x-job-id") or "")[:64].strip() or None
 
@@ -148,10 +152,26 @@ async def enforce_quota(request: Request) -> QuotaContext:
         user_id = key["user_id"]
         plan = await supa.effective_plan(user_id)
         if plan != "business":
+            # Count the rejection in usage analytics before bailing.
+            supa.log_api_request_bg(user_id, key["id"], tool, status.HTTP_403_FORBIDDEN)
             raise HTTPException(
                 status.HTTP_403_FORBIDDEN,
                 "REST API access is available on the Business plan only.",
             )
+        limits = plan_limits(plan)
+        ctx = QuotaContext(user_id, plan, limits, tool, pid, via_api_key=True, api_key_id=key["id"])
+        _quota_ctx.set(ctx)
+        # Business has unlimited daily tasks; still enforce the storage cap.
+        used_storage = await supa.storage_used(user_id)
+        if used_storage is not None:
+            incoming = int(request.headers.get("content-length") or 0)
+            if used_storage + incoming > limits.storage_bytes:
+                supa.log_api_request_bg(user_id, key["id"], tool, status.HTTP_413_REQUEST_ENTITY_TOO_LARGE)
+                raise HTTPException(
+                    status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                    f"Storage limit reached ({fmt_bytes(limits.storage_bytes)} on the {limits.label} plan).",
+                )
+        return ctx
     else:
         # ── Auth path B: Supabase access token (the web app) ──
         # Fail open on outage; only reject a definitively invalid token.

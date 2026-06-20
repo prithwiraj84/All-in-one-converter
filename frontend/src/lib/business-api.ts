@@ -139,3 +139,41 @@ export async function removeMember(id: string): Promise<void> {
   const res = await authFetch(`/api/teams/members/${id}`, { method: "DELETE" });
   if (!res.ok) throw new Error(await detail(res, "Couldn't remove the member."));
 }
+
+/* ── Shared team files ──────────────────────────────────────────── */
+export interface TeamFile {
+  id: string;
+  filename: string;
+  size: number;
+  type: string | null;
+  tool: string | null;
+  storage_path: string | null;
+  created_at: string;
+  expires_at: string | null;
+  user_id: string;
+  member_email: string | null;
+}
+
+export async function getTeamFiles(): Promise<{ team_id: string | null; files: TeamFile[] }> {
+  const res = await authFetch("/api/teams/files");
+  if (!res.ok) throw new Error(await detail(res, "Couldn't load team files."));
+  return res.json();
+}
+
+/* ── REST API usage analytics ───────────────────────────────────── */
+export interface ApiUsage {
+  total: number;
+  errors: number;
+  success_rate: number; // 0..1
+  peak_rpm: number;
+  peak_rpd: number;
+  per_tool: { tool: string; count: number }[];
+  per_key: { name: string; count: number }[];
+  days: number;
+}
+
+export async function getApiUsage(): Promise<ApiUsage> {
+  const res = await authFetch("/api/keys/usage");
+  if (!res.ok) throw new Error(await detail(res, "Couldn't load API usage."));
+  return res.json();
+}

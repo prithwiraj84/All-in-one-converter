@@ -2,19 +2,101 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { Users, UserPlus, Trash2, Loader2, Crown, ShieldCheck, Check, Pencil } from "lucide-react";
+import {
+  Users,
+  UserPlus,
+  Trash2,
+  Loader2,
+  Crown,
+  ShieldCheck,
+  Check,
+  Pencil,
+  Download,
+  FileText,
+  FolderOpen,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { downloadUrl } from "@/lib/api";
+import { formatBytes, timeAgo } from "@/lib/utils";
+import { getTool } from "@/lib/tools-registry";
 import {
   getTeam,
+  getTeamFiles,
   renameTeam,
   addMember,
   setMemberRole,
   removeMember,
   type TeamState,
   type TeamRole,
+  type TeamFile,
 } from "@/lib/business-api";
+
+function toolLabel(tool: string | null): string {
+  if (!tool) return "Converter";
+  const t = getTool(tool);
+  if (t) return t.title;
+  // API requests record the endpoint path (e.g. "pdf/merge") → prettify it.
+  return tool
+    .split("/")
+    .map((part) =>
+      part
+        .split(/[-_]/)
+        .map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : w))
+        .join(" "),
+    )
+    .join(" / ");
+}
+
+/** Files produced by anyone on the team, shared across the workspace. */
+function SharedFiles() {
+  const [files, setFiles] = React.useState<TeamFile[] | null>(null);
+  React.useEffect(() => {
+    getTeamFiles()
+      .then((r) => setFiles(r.files))
+      .catch(() => setFiles([]));
+  }, []);
+  if (!files || files.length === 0) return null; // nothing shared yet / not in a team
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center justify-between space-y-0">
+        <CardTitle className="flex items-center gap-2">
+          <FolderOpen className="h-5 w-5 text-primary" /> Shared files
+        </CardTitle>
+        <span className="text-xs text-muted-foreground">{files.length} files</span>
+      </CardHeader>
+      <CardContent>
+        <p className="mb-3 text-xs text-muted-foreground">
+          Every file your team converts shows up here — with the converter used. Auto-deletes on its retention window.
+        </p>
+        <ul className="divide-y divide-border">
+          {files.map((f) => (
+            <li key={f.id} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-primary/10 text-primary">
+                <FileText className="h-[18px] w-[18px]" />
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-semibold">{f.filename}</p>
+                <p className="truncate text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground/80">{toolLabel(f.tool)}</span> · {formatBytes(f.size)} ·{" "}
+                  {f.member_email ?? "teammate"} · {timeAgo(f.created_at)}
+                </p>
+              </div>
+              {f.storage_path && (
+                <Button asChild variant="outline" size="sm" className="shrink-0">
+                  <a href={downloadUrl(f.storage_path)} download={f.filename} rel="noopener">
+                    <Download className="h-3.5 w-3.5" /> Save
+                  </a>
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  );
+}
 
 const inputCls =
   "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-primary";
@@ -243,6 +325,9 @@ export function TeamView() {
           </CardContent>
         </Card>
       )}
+
+      {/* Shared files across the whole team */}
+      <SharedFiles />
 
       {/* Teams the user belongs to (as a member) */}
       {state.memberships.length > 0 && (
