@@ -39,6 +39,8 @@ create table if not exists public.profiles (
 alter table public.profiles add column if not exists pro_until timestamptz;
 -- When we last emailed this user a renewal reminder (cleared on each grant).
 alter table public.profiles add column if not exists renewal_reminded_at timestamptz;
+-- When the one-time welcome email was sent (null = not welcomed yet).
+alter table public.profiles add column if not exists welcomed_at timestamptz;
 
 -- ── files ──────────────────────────────────────────────────────────────────
 create table if not exists public.files (

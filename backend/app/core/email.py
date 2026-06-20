@@ -1,15 +1,16 @@
 """Transactional email — team invites, purchase thank-you, expiry reminders.
 
-Best-effort with graceful fallbacks: Resend (if `RESEND_API_KEY`) → SMTP (if
-`SMTP_HOST`). Team invites additionally fall back to Supabase's invite email.
-Senders never raise into the caller. Templates are responsive, table-based HTML
-(email-safe) with a polished brand look + a popular-tools showcase.
+Polished, responsive, table-based HTML (email-safe) with a branded header + plan
+badge, a feature grid of the *real* plan perks, an order-details card (purchase),
+a CTA, a help section, and a dark footer. Best-effort delivery: Resend (if
+`RESEND_API_KEY`) → SMTP (if `SMTP_HOST`); invites also fall back to Supabase's
+invite email. Senders never raise into the caller.
 """
 from __future__ import annotations
 
 import logging
 import smtplib
-from datetime import datetime
+from datetime import datetime, timezone
 from email.message import EmailMessage
 from html import escape
 
@@ -20,30 +21,18 @@ from app.config import settings
 
 logger = logging.getLogger("aio.email")
 
-# (emoji, name, tool slug) — linked in every email's "Popular tools" section.
-POPULAR_TOOLS = [
-    ("📄", "Merge PDF", "/merge-pdf"),
-    ("🗜️", "Compress PDF", "/compress-pdf"),
-    ("🖼️", "Image Converter", "/image-converter"),
-    ("🎬", "Video Converter", "/video-converter"),
-    ("✂️", "Background Remover", "/background-remover"),
-    ("📝", "Word to PDF", "/word-to-pdf"),
-]
+_FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
+SUPPORT_EMAIL = "prithwirajdas84@gmail.com"
 
 # Progressive-enhancement CSS (kept out of f-strings so literal braces are safe).
-# Animations/hover work where supported (Apple Mail/iOS); ignored elsewhere — the
-# design looks great statically regardless.
 _STYLE = """
 <style>
-  @media only screen and (max-width:600px){
+  @media only screen and (max-width:620px){
     .container{width:100%!important}
     .px{padding-left:22px!important;padding-right:22px!important}
-    .tool{display:block!important;width:100%!important;box-sizing:border-box}
+    .stack{display:block!important;width:100%!important;box-sizing:border-box;padding-left:0!important}
   }
   .btn:hover{filter:brightness(1.08)}
-  .tool a:hover{border-color:#c7d2fe!important}
-  @keyframes aioShimmer{0%{background-position:0% 50%}100%{background-position:200% 50%}}
-  .hdr{animation:aioShimmer 6s linear infinite alternate}
 </style>
 """
 
@@ -65,136 +54,210 @@ def _fmt_date(iso: str | None) -> str:
         return ""
 
 
+def _fmt_amount(paise: int | None, currency: str) -> str:
+    if not paise:
+        return "Complimentary"
+    major = paise / 100
+    if (currency or "INR").upper() == "INR":
+        return f"₹{major:,.0f}"
+    return f"{major:,.2f} {currency}"
+
+
+# ── Building blocks ─────────────────────────────────────────────────
+def _plan_pill(text: str) -> str:
+    if text.upper() in ("PRO", "BUSINESS"):
+        return (
+            "<span style='display:inline-block;background:linear-gradient(120deg,#f59e0b,#f97316);color:#ffffff;"
+            "font-weight:800;font-size:12px;letter-spacing:.06em;padding:6px 14px;border-radius:999px;"
+            f"box-shadow:0 4px 12px -3px rgba(245,158,11,.55)'>\U0001F451 {escape(text)}</span>"
+        )
+    # Non-plan badge (e.g. WELCOME) — brand gradient, no crown.
+    return (
+        "<span style='display:inline-block;background:linear-gradient(120deg,#2563EB,#7C3AED);color:#ffffff;"
+        "font-weight:800;font-size:12px;letter-spacing:.06em;padding:6px 14px;border-radius:999px;"
+        f"box-shadow:0 4px 12px -3px rgba(124,58,237,.5)'>✨ {escape(text)}</span>"
+    )
+
+
 def _btn(label: str, href: str) -> str:
     return (
         f"<a class='btn' href='{href}' style='display:inline-block;"
         "background:linear-gradient(120deg,#2563EB,#7C3AED);background-color:#2563EB;color:#ffffff;"
-        "text-decoration:none;font-weight:700;font-size:15px;padding:14px 28px;border-radius:12px;"
+        "text-decoration:none;font-weight:700;font-size:15px;padding:14px 30px;border-radius:12px;"
         f"box-shadow:0 10px 22px -8px rgba(124,58,237,.65)'>{escape(label)}&nbsp;&nbsp;&rarr;</a>"
     )
 
 
-def _features(items: list[tuple[str, str, str]]) -> str:
-    rows = ""
-    for emoji, title, desc in items:
-        rows += (
-            "<tr>"
-            f"<td width='34' valign='top' style='font-size:20px;padding:9px 12px 9px 0;line-height:1.2'>{emoji}</td>"
-            f"<td style='padding:9px 0'>"
-            f"<div style='font-size:14px;font-weight:700;color:#0f172a'>{escape(title)}</div>"
-            f"<div style='font-size:13px;color:#64748b;line-height:1.5'>{escape(desc)}</div>"
-            "</td></tr>"
-        )
+def _hero(emoji: str, heading_html: str, intro_html: str) -> str:
     return (
-        "<table role='presentation' width='100%' cellpadding='0' cellspacing='0' "
-        "style='margin-top:6px;border-top:1px solid #eef1f6;border-bottom:1px solid #eef1f6'>"
-        f"{rows}</table>"
+        f"<div style='font-size:40px;line-height:1'>{emoji}</div>"
+        f"<h1 style='margin:12px 0 0;font-size:26px;line-height:1.22;color:#0f172a;letter-spacing:-.5px'>{heading_html}</h1>"
+        "<div style='width:54px;height:4px;border-radius:3px;background:linear-gradient(90deg,#2563EB,#7C3AED);margin:16px 0'></div>"
+        f"<div style='color:#475569;font-size:15px;line-height:1.65'>{intro_html}</div>"
     )
 
 
-def _tools_section() -> str:
-    app = _app()
-    cells = ""
-    for i, (emoji, name, slug) in enumerate(POPULAR_TOOLS):
-        cells += (
-            "<td class='tool' width='50%' valign='top' style='padding:5px'>"
-            f"<a href='{app}{slug}' style='display:block;text-decoration:none;border:1px solid #e8ebf2;"
-            "border-radius:12px;padding:12px 14px;background:#fbfcff'>"
-            f"<span style='font-size:18px'>{emoji}</span>&nbsp;"
-            f"<span style='font-size:14px;font-weight:600;color:#0f172a;vertical-align:middle'>{escape(name)}</span>"
-            "</a></td>"
+def _feature_grid(items: list[tuple[str, str, str]]) -> str:
+    def cell(emoji: str, label: str, bg: str) -> str:
+        return (
+            "<td align='center' valign='top' width='33%' style='padding:10px 6px'>"
+            f"<div style='width:50px;height:50px;line-height:50px;border-radius:50%;background:{bg};font-size:23px;margin:0 auto'>{emoji}</div>"
+            f"<div style='margin-top:8px;font-size:12px;font-weight:600;color:#334155;line-height:1.35'>{escape(label)}</div>"
+            "</td>"
         )
-        if i % 2 == 1:
-            cells += "</tr><tr>"
+
+    rows = ""
+    for i in range(0, len(items), 3):
+        chunk = items[i : i + 3]
+        rows += "<tr>" + "".join(cell(e, l, c) for e, l, c in chunk) + "</tr>"
+    return f"<table role='presentation' width='100%' cellpadding='0' cellspacing='0'>{rows}</table>"
+
+
+def _features_block(title: str, items: list[tuple[str, str, str]]) -> str:
     return (
-        "<tr><td class='px' style='padding:6px 32px 2px'>"
-        "<div style='font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;"
-        "color:#94a3b8;margin:8px 0 10px'>Popular tools to try</div>"
-        f"<table role='presentation' width='100%' cellpadding='0' cellspacing='0'><tr>{cells}</tr></table>"
-        "</td></tr>"
+        "<div style='margin-top:26px;background:#f8fafc;border:1px solid #eef1f6;border-radius:14px;padding:20px 16px'>"
+        f"<p style='margin:0 0 12px;text-align:center;font-size:16px;font-weight:700;color:#0f172a'>{escape(title)}</p>"
+        f"{_feature_grid(items)}"
+        "</div>"
+    )
+
+
+def _order_block(plan_label: str, rows: list[tuple[str, str]]) -> str:
+    row_html = ""
+    for k, v in rows:
+        row_html += (
+            "<tr>"
+            f"<td style='padding:8px 0;font-size:13px;color:#64748b'>{escape(k)}</td>"
+            f"<td align='right' style='padding:8px 0;font-size:13px;font-weight:600;color:#0f172a'>{v}</td>"
+            "</tr>"
+        )
+    badge = (
+        "<div style='display:inline-block;background:linear-gradient(135deg,#2563EB,#7C3AED);border-radius:14px;"
+        "padding:16px 22px;text-align:center;color:#ffffff'>"
+        "<div style='font-size:26px;line-height:1'>\U0001F451</div>"
+        f"<div style='margin-top:4px;font-weight:800;font-size:17px;letter-spacing:.05em'>{escape(plan_label.upper())}</div>"
+        "<div style='display:inline-block;margin-top:8px;background:#22c55e;color:#ffffff;font-size:11px;font-weight:700;"
+        "padding:3px 12px;border-radius:999px'>ACTIVE &#10003;</div></div>"
+    )
+    return (
+        "<div style='margin-top:22px;border:1px solid #eef1f6;border-radius:14px;padding:20px'>"
+        "<p style='margin:0 0 8px;font-size:15px;font-weight:700;color:#0f172a'>\U0001F4CB Your order details</p>"
+        "<table role='presentation' width='100%'><tr>"
+        f"<td valign='middle' class='stack' width='60%'><table role='presentation' width='100%'>{row_html}</table></td>"
+        f"<td valign='middle' align='center' class='stack' width='40%' style='padding-left:12px'>{badge}</td>"
+        "</tr></table></div>"
+    )
+
+
+def _cta_block(label: str, href: str, subtext: str) -> str:
+    return (
+        "<div style='margin-top:26px;text-align:center'>"
+        f"{_btn(label, href)}"
+        f"<p style='margin:14px 0 0;font-size:13px;color:#64748b'>{escape(subtext)}</p>"
+        "</div>"
+    )
+
+
+def _help_block() -> str:
+    app = _app()
+    link = "font-size:13px;font-weight:600;color:#2563EB;text-decoration:none"
+    return (
+        "<div style='margin-top:22px;background:#f8fafc;border:1px solid #eef1f6;border-radius:14px;padding:18px'>"
+        "<table role='presentation' width='100%'><tr>"
+        "<td valign='top' class='stack' width='50%' style='padding:4px 10px'>"
+        "<p style='margin:0;font-size:14px;font-weight:700;color:#0f172a'>\U0001F3A7 Need help?</p>"
+        "<p style='margin:3px 0 6px;font-size:12px;color:#64748b'>We&rsquo;re here for you.</p>"
+        f"<a href='mailto:{SUPPORT_EMAIL}' style='{link}'>Contact support &rarr;</a></td>"
+        "<td valign='top' class='stack' width='50%' style='padding:4px 10px'>"
+        "<p style='margin:0;font-size:14px;font-weight:700;color:#0f172a'>✉️ Have questions?</p>"
+        "<p style='margin:3px 0 6px;font-size:12px;color:#64748b'>Browse the tools &amp; FAQ.</p>"
+        f"<a href='{app}/#how-it-works' style='{link}'>Visit help center &rarr;</a></td>"
+        "</tr></table></div>"
     )
 
 
 def _footer(reason: str) -> str:
     app = _app()
-    link = "color:#2563EB;text-decoration:none;font-size:13px;font-weight:600"
+    link = "color:#93c5fd;text-decoration:none;font-size:12px"
     return (
-        "<tr><td class='px' style='padding:20px 32px 30px'>"
-        "<div style='border-top:1px solid #eef1f6;padding-top:16px'>"
-        f"<a href='{app}/tools' style='{link}'>All tools</a>"
-        f"&nbsp;&middot;&nbsp;<a href='{app}/dashboard' style='{link}'>Dashboard</a>"
-        f"&nbsp;&middot;&nbsp;<a href='{app}/#pricing' style='{link}'>Pricing</a>"
-        f"&nbsp;&middot;&nbsp;<a href='{app}/api-docs' style='{link}'>API</a>"
-        f"<p style='margin:12px 0 0;color:#94a3b8;font-size:11px;line-height:1.6'>{escape(reason)}</p>"
-        "<p style='margin:6px 0 0;color:#cbd5e1;font-size:11px'>&copy; All in one converter</p>"
-        "</div></td></tr>"
+        "<tr><td style='background:#0b1220;padding:24px 32px'>"
+        "<table role='presentation' width='100%'><tr>"
+        "<td style='color:#ffffff;font-weight:800;font-size:15px'>\U0001F504 All in one converter</td>"
+        f"<td align='right'><a href='{app}/tools' style='{link}'>Tools</a>&nbsp;&middot;&nbsp;"
+        f"<a href='{app}/dashboard' style='{link}'>Dashboard</a>&nbsp;&middot;&nbsp;"
+        f"<a href='{app}/#pricing' style='{link}'>Pricing</a>&nbsp;&middot;&nbsp;"
+        f"<a href='{app}/api-docs' style='{link}'>API</a></td>"
+        "</tr></table>"
+        "<p style='margin:10px 0 0;color:#94a3b8;font-size:12px'>All your file conversion needs, in one powerful solution.</p>"
+        f"<p style='margin:14px 0 0;color:#64748b;font-size:11px;line-height:1.6'>&copy; All in one converter. {escape(reason)}</p>"
+        "</td></tr>"
     )
 
 
-def _doc(
-    *,
-    preheader: str,
-    hero_emoji: str,
-    heading: str,
-    intro_html: str,
-    features_html: str,
-    cta_label: str,
-    cta_href: str,
-    footer_reason: str,
-    show_tools: bool = True,
-) -> str:
-    features_block = f"<div style='margin-top:20px'>{features_html}</div>" if features_html else ""
-    tools_block = _tools_section() if show_tools else ""
-    button_block = _btn(cta_label, cta_href)
-    footer_block = _footer(footer_reason)
-    font = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
+def _page(preheader: str, plan_badge: str, inner: str, footer_reason: str) -> str:
+    app = _app()
     return (
         "<!doctype html><html><head><meta charset='utf-8'>"
         "<meta name='viewport' content='width=device-width,initial-scale=1'>"
         f"{_STYLE}</head>"
-        f"<body style='margin:0;padding:0;background:#eef1f8;font-family:{font}'>"
+        f"<body style='margin:0;padding:0;background:#eef1f8;font-family:{_FONT}'>"
         f"<span style='display:none;opacity:0;color:#eef1f8;font-size:1px;line-height:1px'>{escape(preheader)}</span>"
-        "<table role='presentation' width='100%' cellpadding='0' cellspacing='0' "
-        "style='background:#eef1f8;padding:30px 12px'><tr><td align='center'>"
-        "<table role='presentation' class='container' width='560' cellpadding='0' cellspacing='0' "
-        "style='width:560px;max-width:560px;background:#ffffff;border-radius:18px;overflow:hidden;"
-        "box-shadow:0 12px 44px rgba(15,23,42,.12)'>"
-        # ── header ──
-        "<tr><td class='hdr' style='background:linear-gradient(120deg,#2563EB,#7C3AED,#06B6D4);"
-        "background-size:200% 200%;padding:24px 32px'>"
+        "<table role='presentation' width='100%' cellpadding='0' cellspacing='0' style='background:#eef1f8;padding:28px 12px'>"
+        "<tr><td align='center'>"
+        "<table role='presentation' class='container' width='600' cellpadding='0' cellspacing='0' "
+        "style='width:600px;max-width:600px;background:#ffffff;border-radius:18px;overflow:hidden;box-shadow:0 12px 44px rgba(15,23,42,.12)'>"
+        # ── header (white) ──
+        "<tr><td style='padding:20px 32px;border-bottom:1px solid #eef1f6'>"
         "<table role='presentation' width='100%'><tr>"
-        "<td style='color:#ffffff;font-weight:800;font-size:19px;letter-spacing:-.3px'>All in one converter</td>"
-        "<td align='right' style='color:#ffffffcc;font-size:12px;font-weight:600'>100+ free file tools</td>"
+        "<td style='font-weight:800;font-size:18px;color:#0f172a'>\U0001F504 All in one converter</td>"
+        f"<td align='right'>{_plan_pill(plan_badge)}</td>"
         "</tr></table></td></tr>"
         # ── animated gradient ribbon (GIF — animates in Gmail/Apple Mail too) ──
         "<tr><td style='font-size:0;line-height:0'>"
-        f"<img src='{_app()}/email-banner.gif' width='560' height='13' alt='' "
-        "style='display:block;width:100%;height:13px;border:0;margin:0' /></td></tr>"
-        # ── hero + body ──
-        "<tr><td class='px' style='padding:34px 36px 8px'>"
-        f"<div style='font-size:44px;line-height:1'>{hero_emoji}</div>"
-        f"<h1 style='margin:14px 0 10px;font-size:25px;color:#0f172a;letter-spacing:-.5px'>{heading}</h1>"
-        f"<div style='color:#475569;font-size:15px;line-height:1.65'>{intro_html}</div>"
-        f"{features_block}"
-        f"<div style='margin:26px 0 4px'>{button_block}</div>"
-        "</td></tr>"
-        # ── popular tools ──
-        f"{tools_block}"
-        # ── footer ──
-        f"{footer_block}"
+        f"<img src='{app}/email-banner.gif' width='600' height='10' alt='' style='display:block;width:100%;height:10px;border:0'/></td></tr>"
+        # ── body ──
+        f"<tr><td class='px' style='padding:30px 36px'>{inner}</td></tr>"
+        # ── footer (dark) ──
+        f"{_footer(footer_reason)}"
         "</table></td></tr></table></body></html>"
     )
 
 
-# ── Senders ─────────────────────────────────────────────────────────
+def _perk_items(label: str) -> list[tuple[str, str, str]]:
+    storage = "20 GB storage" if label == "Business" else "2 GB storage"
+    items = [
+        ("♾️", "Unlimited conversions", "#e0e7ff"),
+        ("\U0001F4E6", "Files up to 1 GB", "#dcfce7"),
+        ("\U0001F4BE", storage, "#ede9fe"),
+        ("\U0001F9F0", "100+ tools", "#ffedd5"),
+    ]
+    if label == "Business":
+        items += [("\U0001F50C", "REST API access", "#cffafe"), ("\U0001F465", "Team workspaces", "#fce7f3")]
+    else:
+        items += [("⏳", "Files kept 1 day", "#cffafe"), ("\U0001F6AB", "No ads", "#fce7f3")]
+    return items
+
+
+# ── Delivery ────────────────────────────────────────────────────────
+_UNSUB = f"<mailto:{SUPPORT_EMAIL}?subject=unsubscribe>"
+
+
 async def _send_resend(to: str, subject: str, html: str, text: str) -> bool:
     try:
         async with httpx.AsyncClient(timeout=15) as client:
             resp = await client.post(
                 "https://api.resend.com/emails",
                 headers={"Authorization": f"Bearer {settings.resend_api_key}", "Content-Type": "application/json"},
-                # A plain-text part (multipart) materially improves deliverability.
-                json={"from": settings.email_from, "to": [to], "subject": subject, "html": html, "text": text},
+                json={
+                    "from": settings.email_from,
+                    "to": [to],
+                    "subject": subject,
+                    "html": html,
+                    "text": text,
+                    # Deliverability: a real reply-to + List-Unsubscribe signal legitimacy.
+                    "reply_to": SUPPORT_EMAIL,
+                    "headers": {"List-Unsubscribe": _UNSUB},
+                },
             )
         if resp.status_code < 300:
             return True
@@ -209,7 +272,9 @@ def _smtp_send_blocking(to: str, subject: str, html: str, text: str) -> bool:
     msg["Subject"] = subject
     msg["From"] = settings.email_from
     msg["To"] = to
-    msg.set_content(text)  # plain-text part
+    msg["Reply-To"] = SUPPORT_EMAIL
+    msg["List-Unsubscribe"] = _UNSUB
+    msg.set_content(text)
     msg.add_alternative(html, subtype="html")
     with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=20) as server:
         server.starttls()
@@ -237,39 +302,117 @@ async def _deliver(to: str, subject: str, html: str, text: str) -> bool:
     return False
 
 
-def _plan_perks(label: str) -> list[tuple[str, str, str]]:
-    storage = "20 GB" if label == "Business" else "2 GB"
-    perks = [
-        ("📦", "Larger uploads", "Convert files up to 1 GB each"),
-        ("💾", "More storage", f"{storage} of room for your files"),
-        ("⏳", "Longer retention", "Your files are kept for a full day"),
-        ("🚫", "No ads", "A clean, distraction-free workspace"),
-    ]
-    if label == "Business":
-        perks += [
-            ("🔌", "REST API access", "Automate conversions from your own apps"),
-            ("👥", "Team workspaces", "Invite your team under one plan"),
-        ]
-    return perks
-
-
 # ── Public templates ────────────────────────────────────────────────
-async def send_team_invite(to_email: str, team_name: str, inviter: str | None) -> bool:
-    label = "Business"
-    who = f"<strong>{escape(inviter)}</strong> invited you" if inviter else "You've been invited"
-    intro = (
-        f"{who} to join the <strong>{escape(team_name)}</strong> workspace on All in one converter. "
-        "Joining gives you full <strong>Business</strong> access — just sign in with this email."
+async def send_purchase_thankyou(
+    to_email: str,
+    plan: str,
+    until_iso: str | None,
+    *,
+    amount: int | None = None,
+    currency: str | None = None,
+    order_id: str | None = None,
+) -> bool:
+    label = (plan or "Pro").capitalize()
+    until = _fmt_date(until_iso)
+    days = settings.plan_period_days(plan)
+    cycle = "Monthly" if days == 30 else "Annual" if days == 365 else f"{days} days"
+    amount_str = _fmt_amount(amount, currency or settings.razorpay_currency)
+
+    hero = _hero(
+        "\U0001F389",
+        f"Thank you for choosing<br>All in one converter "
+        f"<span style='color:#7C3AED'>{label}!</span>",
+        f"Your <strong>{label}</strong> subscription is now active. You now have access to all premium "
+        "features and tools.",
     )
-    html = _doc(
+    feats = _features_block(f"Unlock the power of {label}", _perk_items(label))
+    rows = [
+        ("Plan", f"All in one converter {label}"),
+        ("Order ID", escape(order_id) if order_id else "—"),
+        ("Date", datetime.now(timezone.utc).strftime("%d %b %Y")),
+        ("Billing cycle", cycle),
+        ("Amount paid", f"<span style='color:#16a34a;font-weight:700'>{amount_str}</span>"),
+    ]
+    order = _order_block(label, rows)
+    cta = _cta_block(
+        "Go to dashboard", f"{_app()}/dashboard",
+        "Start converting, editing and managing your files like a pro!",
+    )
+    inner = hero + feats + order + cta + _help_block()
+    html = _page(
+        preheader=f"Your {label} subscription is now active.",
+        plan_badge=label.upper(),
+        inner=inner,
+        footer_reason="You are receiving this email because you made a purchase.",
+    )
+    text = (
+        f"Thank you for choosing All in one converter {label}!\n"
+        f"Your {label} subscription is now active"
+        + (f" until {until}" if until else "")
+        + f".\nAmount paid: {amount_str} ({cycle})"
+        + (f" · Order {order_id}" if order_id else "")
+        + f"\nOpen your dashboard: {_app()}/dashboard"
+    )
+    return await _deliver(to_email, f"Welcome to {label} — your subscription is now active", html, text)
+
+
+_WELCOME_ITEMS = [
+    ("\U0001F9F0", "100+ free tools", "#e0e7ff"),
+    ("\U0001F4C4", "PDF tools", "#dcfce7"),
+    ("\U0001F5BC️", "Image tools", "#ede9fe"),
+    ("\U0001F3AC", "Audio & video", "#ffedd5"),
+    ("\U0001F512", "Files auto-deleted", "#cffafe"),
+    ("⚡", "Fast & free", "#fce7f3"),
+]
+
+
+async def send_welcome(to_email: str, name: str | None = None) -> bool:
+    first = (name or "").strip().split(" ")[0] if name else ""
+    heading = f"Welcome aboard{', ' + escape(first) if first else ''}! \U0001F44B"
+    hero = _hero(
+        "\U0001F44B",
+        heading,
+        "Your <strong>All in one converter</strong> account is ready. Convert, compress, edit and optimize "
+        "your files with 100+ free tools — no watermarks, no hassle.",
+    )
+    feats = _features_block("What you can do", _WELCOME_ITEMS)
+    cta = _cta_block(
+        "Explore all tools", f"{_app()}/tools",
+        "Most tools work instantly, right in your browser.",
+    )
+    inner = hero + feats + cta + _help_block()
+    html = _page(
+        preheader="Your account is ready — start converting with 100+ free tools.",
+        plan_badge="WELCOME",
+        inner=inner,
+        footer_reason="You are receiving this email because you signed up.",
+    )
+    text = (
+        "Welcome to All in one converter! Your account is ready.\n"
+        f"Explore 100+ free tools: {_app()}/tools"
+    )
+    return await _deliver(to_email, "Welcome to All in one converter", html, text)
+
+
+async def send_team_invite(to_email: str, team_name: str, inviter: str | None) -> bool:
+    who = f"<strong>{escape(inviter)}</strong> invited you" if inviter else "You&rsquo;ve been invited"
+    hero = _hero(
+        "✉️",
+        f"You&rsquo;re invited to<br>{escape(team_name)}",
+        f"{who} to join the <strong>{escape(team_name)}</strong> workspace on All in one converter — "
+        "and unlock full <strong>Business</strong> access.",
+    )
+    feats = _features_block("What you&rsquo;ll unlock", _perk_items("Business"))
+    cta = _cta_block(
+        "Accept invitation", f"{_app()}/signup",
+        "Sign in (or sign up) with this email and your Business access is applied automatically.",
+    )
+    inner = hero + feats + cta + _help_block()
+    html = _page(
         preheader=f"Join {team_name} and unlock Business access.",
-        hero_emoji="✉️",
-        heading=f"You're invited to {escape(team_name)}",
-        intro_html=intro,
-        features_html=_features(_plan_perks(label)),
-        cta_label="Accept invitation",
-        cta_href=f"{_app()}/signup",
-        footer_reason="You received this because someone invited you to their team on All in one converter.",
+        plan_badge="BUSINESS",
+        inner=inner,
+        footer_reason="You are receiving this email because you were invited to a team.",
     )
     subject = f"You're invited to {team_name} on All in one converter"
     text = (
@@ -285,50 +428,28 @@ async def send_team_invite(to_email: str, team_name: str, inviter: str | None) -
     return False
 
 
-async def send_purchase_thankyou(to_email: str, plan: str, until_iso: str | None) -> bool:
-    label = (plan or "Pro").capitalize()
-    until = _fmt_date(until_iso)
-    intro = (
-        f"Thank you for upgrading to <strong>{label}</strong>! Your plan is active"
-        + (f" until <strong>{until}</strong>" if until else "")
-        + ". Here's everything you've unlocked:"
-    )
-    html = _doc(
-        preheader=f"Your {label} plan is active. Here's what you unlocked.",
-        hero_emoji="🎉",
-        heading=f"Welcome to {label}!",
-        intro_html=intro,
-        features_html=_features(_plan_perks(label)),
-        cta_label="Open your dashboard",
-        cta_href=f"{_app()}/dashboard",
-        footer_reason="You received this because you upgraded your plan on All in one converter.",
-    )
-    text = (
-        f"Thanks for upgrading to {label}! Your plan is active"
-        + (f" until {until}" if until else "")
-        + f".\nOpen your dashboard: {_app()}/dashboard"
-    )
-    return await _deliver(to_email, f"Thanks for upgrading to {label} 🎉", html, text)
-
-
 async def send_expiry_reminder(to_email: str, plan: str, until_iso: str | None, days_left: int) -> bool:
     label = (plan or "Pro").capitalize()
     until = _fmt_date(until_iso)
     when = "today" if days_left <= 0 else "tomorrow" if days_left == 1 else f"in {days_left} days"
-    intro = (
-        f"Your <strong>{label}</strong> plan expires <strong>{when}</strong>"
-        + (f" (on {until})" if until else "")
-        + ". Renew now to keep these benefits — if it lapses you simply return to Free; your files and history stay."
+    hero = _hero(
+        "⏰",
+        f"Your {label} plan expires {when}",
+        f"Renew now to keep your premium features"
+        + (f" — your plan ends on <strong>{until}</strong>" if until else "")
+        + ". If it lapses you simply return to Free; your files and history stay.",
     )
-    html = _doc(
+    feats = _features_block(f"Keep your {label} benefits", _perk_items(label))
+    cta = _cta_block(
+        f"Renew {label}", f"{_app()}/dashboard?tab=settings",
+        "Renew in a couple of clicks from your dashboard.",
+    )
+    inner = hero + feats + cta + _help_block()
+    html = _page(
         preheader=f"Your {label} plan expires {when}. Renew to keep your benefits.",
-        hero_emoji="⏰",
-        heading=f"Your {label} plan expires {when}",
-        intro_html=intro,
-        features_html=_features(_plan_perks(label)),
-        cta_label=f"Renew {label}",
-        cta_href=f"{_app()}/dashboard?tab=settings",
-        footer_reason="You received this because your paid plan on All in one converter is about to expire.",
+        plan_badge=label.upper(),
+        inner=inner,
+        footer_reason="You are receiving this email because your paid plan is about to expire.",
     )
     text = (
         f"Your {label} plan expires {when}"

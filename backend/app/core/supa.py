@@ -747,6 +747,40 @@ async def is_paying_owner(user_id: str) -> bool:
         return False
 
 
+async def is_welcomed(user_id: str) -> bool:
+    """True if the one-time welcome email was already sent (welcomed_at set).
+    Fails CLOSED (returns True) on error so we never spam duplicate welcomes."""
+    if not is_configured():
+        return True
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            resp = await client.get(
+                f"{settings.supabase_url}/rest/v1/profiles",
+                params={"id": f"eq.{user_id}", "select": "welcomed_at", "limit": "1"},
+                headers=_rest_headers(),
+            )
+        rows = resp.json()
+        return bool(rows and rows[0].get("welcomed_at"))
+    except Exception:  # noqa: BLE001
+        logger.warning("is_welcomed failed", exc_info=True)
+        return True
+
+
+async def mark_welcomed(user_id: str) -> None:
+    if not is_configured():
+        return
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            await client.patch(
+                f"{settings.supabase_url}/rest/v1/profiles",
+                params={"id": f"eq.{user_id}"},
+                headers={**_rest_headers(), "Content-Type": "application/json", "Prefer": "return=minimal"},
+                json={"welcomed_at": datetime.now(timezone.utc).isoformat()},
+            )
+    except Exception:  # noqa: BLE001
+        logger.warning("mark_welcomed failed", exc_info=True)
+
+
 async def get_pro_until(user_id: str) -> str | None:
     try:
         async with httpx.AsyncClient(timeout=_TIMEOUT) as client:

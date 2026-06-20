@@ -65,11 +65,15 @@ async def _grant_plan(user_id: str, plan: str) -> str:
     return until
 
 
-async def _notify_purchase(user_id: str, plan: str, until: str) -> None:
+async def _notify_purchase(
+    user_id: str, plan: str, until: str, amount: int | None = None, order_id: str | None = None
+) -> None:
     """Look up the buyer's email and send the thank-you (used by the webhook)."""
     addr = await supa.user_email(user_id)
     if addr:
-        await email_mod.send_purchase_thankyou(addr, plan, until)
+        await email_mod.send_purchase_thankyou(
+            addr, plan, until, amount=amount, currency=settings.razorpay_currency, order_id=order_id
+        )
 
 
 @router.get("/config")
@@ -131,7 +135,15 @@ async def verify(body: VerifyIn, background: BackgroundTasks, user: dict = Depen
     if settings.plan_amount(body.plan) is None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Unknown plan.")
     until = await _grant_plan(user["id"], body.plan)
-    background.add_task(email_mod.send_purchase_thankyou, user.get("email"), body.plan, until)
+    background.add_task(
+        email_mod.send_purchase_thankyou,
+        user.get("email"),
+        body.plan,
+        until,
+        amount=settings.plan_amount(body.plan),
+        currency=settings.razorpay_currency,
+        order_id=body.razorpay_order_id,
+    )
     return {"plan": body.plan, "until": until}
 
 
@@ -179,7 +191,9 @@ async def webhook(request: Request, background: BackgroundTasks) -> dict:
         if user_id and settings.plan_amount(plan) is not None:
             try:
                 until = await _grant_plan(user_id, plan)
-                background.add_task(_notify_purchase, user_id, plan, until)
+                amount = entity.get("amount") or settings.plan_amount(plan)
+                order_id = entity.get("order_id") or entity.get("id")
+                background.add_task(_notify_purchase, user_id, plan, until, amount, order_id)
             except Exception:  # noqa: BLE001 - webhook must still 200 so Razorpay won't spam retries
                 logger.warning("webhook grant failed for %s", user_id, exc_info=True)
     return {"ok": True}

@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/providers/theme-provider";
 import { Toaster } from "@/components/ui/sonner";
 import { NavProgress } from "@/components/shared/nav-progress";
 import { ErrorReporter } from "@/components/error-reporter";
+import { WelcomeOnboard } from "@/components/welcome-onboard";
 import { ConsentBanner } from "@/components/ads/consent-banner";
 import { AdsenseLoader } from "@/components/ads/adsense-loader";
 import { FundingChoices } from "@/components/ads/funding-choices";
@@ -85,6 +86,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <QueryProvider>
             <NavProgress />
             <ErrorReporter />
+            <WelcomeOnboard />
             <FundingChoices />
             <AdsenseLoader />
             {children}
