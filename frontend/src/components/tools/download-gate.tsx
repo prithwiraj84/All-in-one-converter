@@ -13,7 +13,9 @@ export function DownloadGate({
   pending,
   redirectTo,
 }: {
-  pending: PendingDownload;
+  /** Server results stash a pending download to restore after sign-in; in-browser
+   * (blob) results pass null since they can't survive the redirect. */
+  pending?: PendingDownload | null;
   redirectTo: string;
 }) {
   return (
@@ -30,7 +32,12 @@ export function DownloadGate({
           </p>
         </div>
       </div>
-      <SocialButtons redirectTo={redirectTo} onBeforeRedirect={() => setPendingDownload(pending)} />
+      <SocialButtons
+        redirectTo={redirectTo}
+        onBeforeRedirect={() => {
+          if (pending) setPendingDownload(pending);
+        }}
+      />
     </div>
   );
 }

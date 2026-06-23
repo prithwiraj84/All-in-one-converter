@@ -25,10 +25,13 @@ async def resize(
     width: int = Form(1280),
     height: int = Form(720),
     keep_ratio: bool = Form(True),
+    target: str = Form("png"),
 ):
     return await run_job(
         files, allowed_exts=IMG, multiple=True,
-        runner=lambda jid, paths, out: image_service.resize(jid, paths, out, width=width, height=height, keep_ratio=keep_ratio),
+        runner=lambda jid, paths, out: image_service.resize(
+            jid, paths, out, width=width, height=height, keep_ratio=keep_ratio, target=target
+        ),
     )
 
 

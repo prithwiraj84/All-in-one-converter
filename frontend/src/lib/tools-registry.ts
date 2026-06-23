@@ -607,9 +607,9 @@ export const TOOLS: Tool[] = [
     slug: "resize-image",
     title: "Resize Image",
     category: "image",
-    description: "Resize images to exact dimensions while keeping them sharp.",
+    description: "Resize any image to any dimensions and save as PNG or JPG.",
     longDescription:
-      "Resize Image scales photos to the exact width and height you need, with optional aspect-ratio locking, for social media, thumbnails and uploads.",
+      "Resize Image scales any photo to the exact width and height you need — with optional aspect-ratio locking — and lets you save the result as PNG or JPG. Great for social media, thumbnails and uploads.",
     icon: Scaling,
     accept: IMG,
     multiple: true,
@@ -619,13 +619,23 @@ export const TOOLS: Tool[] = [
     options: [
       { type: "number", name: "width", label: "Width", default: 1280, min: 1, suffix: "px" },
       { type: "number", name: "height", label: "Height", default: 720, min: 1, suffix: "px" },
+      {
+        type: "select",
+        name: "target",
+        label: "Output format",
+        default: "png",
+        options: [
+          { label: "PNG", value: "png" },
+          { label: "JPG", value: "jpg" },
+        ],
+      },
       { type: "toggle", name: "keep_ratio", label: "Maintain aspect ratio", default: true },
     ],
     seo: {
-      title: "Resize Image — Change Image Dimensions Online Free",
+      title: "Resize Image — Change Image Dimensions, Output PNG or JPG",
       description:
-        "Resize images online for free to any width and height. Keep aspect ratio and quality. Fast and secure.",
-      keywords: ["resize image", "image resizer", "change image size", "scale image"],
+        "Resize any image online for free to any width and height, and save as PNG or JPG. Keep aspect ratio and quality. Fast and secure.",
+      keywords: ["resize image", "image resizer", "change image size", "scale image", "resize to png", "resize to jpg"],
     },
   },
   {

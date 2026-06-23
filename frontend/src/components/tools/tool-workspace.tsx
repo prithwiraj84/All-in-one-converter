@@ -47,13 +47,12 @@ export function ToolWorkspace({ slug }: { slug: string }) {
   // Per-file upload cap follows the user's plan (Free 10 MB · Pro 1 GB).
   const maxMb = Math.round(limits.maxFileBytes / (1024 * 1024));
 
-  // Tools are free to try; downloading requires login. If keys aren't set up
-  // yet, don't gate (the provider buttons would just error) — treat as allowed.
+  // Tools are free to try, but downloading requires an account — for BOTH
+  // server and in-browser results. When Supabase isn't configured (dev), don't
+  // gate (the sign-in buttons would just error) — treat as allowed.
   const canDownload = !isSupabaseConfigured() || Boolean(user);
-  // In-browser results never touched the server → free to download (no gate),
-  // and their download_url is already a local blob: URL.
   const isClientResult = Boolean(state.result?.client);
-  const allowDownload = canDownload || isClientResult;
+  const allowDownload = canDownload;
   const resolveDl = (path: string) => (isClientResult ? path : downloadUrl(path));
 
   // After the OAuth round-trip the in-memory result is gone, so we restore the
@@ -281,7 +280,7 @@ export function ToolWorkspace({ slug }: { slug: string }) {
               <div className="flex flex-col gap-2 sm:flex-row">
                 {tool.resultType === "file" &&
                   state.result.download_url &&
-                  (authLoading && !isClientResult ? (
+                  (authLoading ? (
                     <Button variant="gradient" size="lg" className="flex-1" disabled>
                       <Loader2 className="h-4 w-4 animate-spin" /> Preparing…
                     </Button>
@@ -311,19 +310,25 @@ export function ToolWorkspace({ slug }: { slug: string }) {
               {/* Ad shown to free/consented users only (Pro users see nothing). */}
               <AdUnit minHeight={100} />
 
-              {/* Free to try, sign in to download */}
+              {/* Free to try, sign in to download (server AND in-browser results) */}
               {tool.resultType === "file" &&
                 state.result.download_url &&
                 !authLoading &&
-                !canDownload &&
-                !isClientResult && (
+                !canDownload && (
                   <DownloadGate
-                    pending={{
-                      slug,
-                      url: downloadUrl(state.result.download_url),
-                      filename: state.result.output_filename,
-                      createdAt: Date.now(),
-                    }}
+                    // In-browser results are local blobs that can't survive the
+                    // sign-in redirect, so don't promise a restore for them — the
+                    // user just re-runs (instant) once signed in.
+                    pending={
+                      isClientResult
+                        ? null
+                        : {
+                            slug,
+                            url: downloadUrl(state.result.download_url),
+                            filename: state.result.output_filename,
+                            createdAt: Date.now(),
+                          }
+                    }
                     redirectTo={`/${slug}`}
                   />
                 )}

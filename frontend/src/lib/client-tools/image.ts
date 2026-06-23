@@ -88,11 +88,16 @@ export async function resizeImages(
   const width = Math.max(1, Number(options.width) || 1280);
   const height = Math.max(1, Number(options.height) || 720);
   const keepRatio = options.keep_ratio !== false && options.keep_ratio !== "false";
+  // Output format chosen by the user (PNG or JPG); default PNG.
+  const target = String(options.target ?? "png").toLowerCase();
+  if (!ENCODABLE.has(target)) return null; // unexpected output → let the server handle it
+  const outMime = targetMime(target);
+  const outExt = extFor(target);
 
   const out: ClientFile[] = [];
   for (const file of files) {
     const ext = inputExt(file.name);
-    if (!ENCODABLE.has(ext)) return null; // re-encode only png/jpg/webp here
+    if (!ENCODABLE.has(ext)) return null; // can't decode this input in-browser → server
     const bmp = await decode(file);
     if (!bmp) return null;
 
@@ -103,10 +108,10 @@ export async function resizeImages(
       w = bmp.width * scale;
       h = bmp.height * scale;
     }
-    const blob = await encode(bmp, w, h, targetMime(ext), 0.92);
+    const blob = await encode(bmp, w, h, outMime, 0.92);
     bmp.close?.();
     if (!blob) return null;
-    out.push({ blob, filename: replaceExt(file.name, `resized.${extFor(ext)}`) });
+    out.push({ blob, filename: replaceExt(file.name, `resized.${outExt}`) });
   }
   return out;
 }

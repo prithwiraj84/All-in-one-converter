@@ -77,8 +77,21 @@ def convert(job_id: str, inputs: list[Path], out_dir: Path, *, target: str = "pn
     return file_result(job_id, "image-converter", out, meta={"format": target, "count": len(inputs)})
 
 
-def resize(job_id: str, inputs: list[Path], out_dir: Path, *, width: int = 1280, height: int = 720, keep_ratio: bool = True) -> JobResult:
+def resize(
+    job_id: str,
+    inputs: list[Path],
+    out_dir: Path,
+    *,
+    width: int = 1280,
+    height: int = 720,
+    keep_ratio: bool = True,
+    target: str = "png",
+) -> JobResult:
     width, height = max(1, int(width)), max(1, int(height))
+    target = (target or "png").lower()
+    if target not in _FORMATS:
+        target = "png"
+    fmt, ext = _FORMATS[target]
 
     def _resize_one(src: Path) -> Path:
         img = _open(src)
@@ -87,20 +100,21 @@ def resize(job_id: str, inputs: list[Path], out_dir: Path, *, width: int = 1280,
             img.thumbnail((width, height), Image.Resampling.LANCZOS)
         else:
             img = img.resize((width, height), Image.Resampling.LANCZOS)
-        dest = out_dir / f"{stem(src.name)}-resized{src.suffix or '.png'}"
-        img.save(dest)
+        dest = out_dir / f"{stem(src.name)}-resized{ext}"
+        _save(img, dest, fmt, quality=92)
         return dest
 
+    meta = {"width": width, "height": height, "format": target}
     if len(inputs) == 1:
-        return file_result(job_id, "resize-image", _resize_one(inputs[0]), meta={"width": width, "height": height})
+        return file_result(job_id, "resize-image", _resize_one(inputs[0]), meta=meta)
 
-    out = out_dir / "resized.zip"
+    out = out_dir / f"resized-{target}.zip"
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as zf:
         for src in inputs:
             dest = _resize_one(src)
             zf.write(dest, arcname=dest.name)
             dest.unlink(missing_ok=True)
-    return file_result(job_id, "resize-image", out, meta={"width": width, "height": height, "count": len(inputs)})
+    return file_result(job_id, "resize-image", out, meta={**meta, "count": len(inputs)})
 
 
 def compress(job_id: str, inputs: list[Path], out_dir: Path, *, quality: int = 80) -> JobResult:
