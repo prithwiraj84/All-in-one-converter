@@ -81,7 +81,9 @@ class ConcurrencyLimitMiddleware(BaseHTTPMiddleware):
     a multi-instance setup, move this to a shared limiter (e.g. Redis).
     """
 
-    HEAVY_PREFIXES = ("/api/document/", "/api/video/", "/api/ai/")
+    # /api/worker runs the offloaded heavy jobs, so it counts against the heavy
+    # cap too — overflow gets a 503 and QStash simply retries it later.
+    HEAVY_PREFIXES = ("/api/document/", "/api/video/", "/api/ai/", "/api/worker/")
 
     def __init__(self, app):
         super().__init__(app)

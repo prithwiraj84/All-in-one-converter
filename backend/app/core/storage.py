@@ -66,19 +66,19 @@ def resolve_download(job_id: str, filename: str) -> Path | None:
     return target if target.is_file() else None
 
 
-def cleanup_expired() -> int:
+def cleanup_expired() -> list[str]:
     """Delete job directories past their per-plan retention window.
 
     Each job dir carries a `.retain` marker with its retention minutes (written
     at creation: Free 60 · Pro/Business 1 day). Missing marker → the default.
-    Returns the number of directories removed.
+    Returns the list of removed job ids (so object storage can be purged too).
     """
     now = time.time()
     default_retention = settings.file_retention_minutes
-    removed = 0
+    removed: list[str] = []
     root = settings.storage_path
     if not root.exists():
-        return 0
+        return removed
     for child in root.iterdir():
         # Skip dotted dirs (.cache/.models hold downloaded AI models) — only job
         # directories (uuid hex) are subject to retention cleanup.
@@ -96,19 +96,24 @@ def cleanup_expired() -> int:
                     pass
             if child.stat().st_mtime < now - retain * 60:
                 shutil.rmtree(child, ignore_errors=True)
-                removed += 1
+                removed.append(child.name)
         except OSError:
             continue
     if removed:
-        logger.info("Cleaned up %d expired job(s)", removed)
+        logger.info("Cleaned up %d expired job(s)", len(removed))
     return removed
 
 
 async def retention_loop(interval_seconds: int = 300) -> None:
-    """Background task: periodically purge expired files."""
+    """Background task: periodically purge expired files (disk + object storage)."""
+    from app.core import object_storage
+
     while True:
         try:
-            cleanup_expired()
+            removed = cleanup_expired()
+            if removed and object_storage.enabled():
+                for job_id in removed:
+                    await object_storage.delete_prefix(job_id)
         except Exception:  # noqa: BLE001 - never let the loop die
             logger.exception("retention cleanup failed")
         await asyncio.sleep(interval_seconds)

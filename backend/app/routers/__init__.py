@@ -16,6 +16,7 @@ from app.routers import (
     pdf,
     teams,
     video,
+    worker,
 )
 
 # Order here controls OpenAPI tag grouping.
@@ -37,6 +38,7 @@ all_routers = [
     teams.router,
     me.router,
     admin.router,
+    worker.router,
 ]
 
 __all__ = ["all_routers"]

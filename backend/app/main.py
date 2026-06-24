@@ -18,7 +18,7 @@ from app.core.security import (
     SecurityHeadersMiddleware,
 )
 from app.core.storage import cleanup_expired, retention_loop
-from app.core import email, logbuffer
+from app.core import email, logbuffer, observability
 from app.core.reminders import reminder_loop
 from app.routers import (
     admin as admin_router,
@@ -30,10 +30,14 @@ from app.routers import (
     me as me_router,
     payments as payments_router,
     teams as teams_router,
+    worker as worker_router,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger("aio")
+
+# Initialize error tracking as early as possible (no-op without SENTRY_DSN).
+observability.init_sentry()
 
 
 @asynccontextmanager
@@ -87,6 +91,7 @@ app.add_middleware(
 )
 
 register_exception_handlers(app)
+observability.install_metrics(app)  # Prometheus /metrics (gated by METRICS_ENABLED)
 
 # Health, downloads and payments stay off the processing-quota dependency.
 # (Payments enforce auth via their own require_user dependency.)
@@ -99,6 +104,7 @@ _OPEN_ROUTERS = {
     id(teams_router.router),
     id(me_router.router),
     id(admin_router.router),
+    id(worker_router.router),  # authenticated by QStash signature, not user quota
 }
 for router in all_routers:
     deps = [] if id(router) in _OPEN_ROUTERS else [Depends(enforce_quota)]

@@ -42,6 +42,33 @@ function clientResult(tool: Tool, outputs: ClientFile[]): JobResult {
   };
 }
 
+/**
+ * Poll an async (QStash) job until it finishes. Only used when the server
+ * returns status:"queued" — which only happens once the async queue is
+ * configured. Synchronous responses never reach here, so default behavior is
+ * unchanged. Resolves with the final JobResult (completed or failed).
+ */
+async function pollJob(jobId: string, signal: AbortSignal): Promise<JobResult> {
+  const deadline = Date.now() + 15 * 60 * 1000; // 15-minute ceiling
+  while (Date.now() < deadline) {
+    if (signal.aborted) throw new DOMException("Aborted", "AbortError");
+    await new Promise((r) => setTimeout(r, 2000));
+    try {
+      const resp = await fetch(`${API_BASE}/api/jobs/${jobId}`, { signal });
+      const rec = (await resp.json()) as { status?: string; result?: JobResult; error?: string };
+      if (rec.status === "completed" && rec.result) return rec.result;
+      if (rec.status === "failed") {
+        return { job_id: jobId, tool: "", status: "failed", error: rec.error ?? "Processing failed." };
+      }
+      // queued / processing / unknown → keep polling
+    } catch (err) {
+      if ((err as Error).name === "AbortError") throw err;
+      // transient network error → keep polling until the deadline
+    }
+  }
+  throw new Error("Timed out waiting for the job to finish.");
+}
+
 export type RunnerStage = "idle" | "uploading" | "processing" | "done" | "error";
 
 export interface RunnerState {
@@ -143,7 +170,7 @@ export function useToolRunner(tool: Tool | undefined) {
       };
 
       try {
-        const result = await runTool({
+        let result = await runTool({
           endpoint: tool.endpoint,
           files,
           options,
@@ -158,6 +185,15 @@ export function useToolRunner(tool: Tool | undefined) {
             openStream();
           },
         });
+
+        // Async queue: the server accepted the job and is processing it in the
+        // background — poll until it completes. (Only when the queue is enabled;
+        // otherwise the result is already final and this branch is skipped.)
+        if (result.status === "queued") {
+          closeStream();
+          setState((s) => ({ ...s, stage: "processing", stageLabel: "queued" }));
+          result = await pollJob(result.job_id, controller.signal);
+        }
 
         closeStream();
         if (result.status === "failed") {

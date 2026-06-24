@@ -14,7 +14,7 @@ IMG = {".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tiff", ".tif"}
 @router.post("/convert", response_model=JobResult)
 async def convert(files: list[UploadFile] = File(...), target: str = Form("png")):
     return await run_job(
-        files, allowed_exts=IMG, multiple=True,
+        files, allowed_exts=IMG, multiple=True, cache_options={"target": target},
         runner=lambda jid, paths, out: image_service.convert(jid, paths, out, target=target),
     )
 
@@ -29,6 +29,7 @@ async def resize(
 ):
     return await run_job(
         files, allowed_exts=IMG, multiple=True,
+        cache_options={"width": width, "height": height, "keep_ratio": keep_ratio, "target": target},
         runner=lambda jid, paths, out: image_service.resize(
             jid, paths, out, width=width, height=height, keep_ratio=keep_ratio, target=target
         ),
@@ -38,6 +39,6 @@ async def resize(
 @router.post("/compress", response_model=JobResult)
 async def compress(files: list[UploadFile] = File(...), quality: int = Form(80)):
     return await run_job(
-        files, allowed_exts=IMG, multiple=True,
+        files, allowed_exts=IMG, multiple=True, cache_options={"quality": quality},
         runner=lambda jid, paths, out: image_service.compress(jid, paths, out, quality=quality),
     )

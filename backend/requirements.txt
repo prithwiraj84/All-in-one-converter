@@ -31,6 +31,13 @@ httpx==0.28.1
 python-dotenv==1.0.1
 psutil==6.1.1            # admin panel system stats (CPU/RAM/disk)
 
+# ── Infrastructure (optional; all lazy-imported so the app boots without them) ──
+sentry-sdk[fastapi]==2.20.0               # error tracking (SENTRY_DSN)
+prometheus-fastapi-instrumentator==7.0.2  # /metrics endpoint
+PyJWT==2.10.1                             # verify Upstash QStash request signatures
+# Upstash Redis (job store + cache) and QStash (async queue) are called over
+# their REST APIs with httpx — no SDKs needed.
+
 # ── AI tools ───────────────────────────────────────────────────
 # All CPU-friendly; heavy libs are imported lazily so the app boots without them.
 rembg==2.0.59            # background removal (ONNX runtime, CPU)

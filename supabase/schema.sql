@@ -222,6 +222,19 @@ create table if not exists public.api_requests (
 );
 create index if not exists api_requests_user_created_idx on public.api_requests (user_id, created_at desc);
 
+-- ── conversion_cache ─────────────────────────────────────────────────────────
+-- Content-hash dedup: an identical (input + tool + options) conversion returns
+-- the stored output instantly. Written/read by the backend (service-role) only.
+-- Only needed when CACHE_BACKEND=supabase (Redis backend uses Upstash instead).
+create table if not exists public.conversion_cache (
+  key         text primary key,
+  value       jsonb not null,
+  created_at  timestamptz not null default now(),
+  expires_at  timestamptz not null
+);
+create index if not exists conversion_cache_expires_idx on public.conversion_cache (expires_at);
+alter table public.conversion_cache enable row level security;  -- service-role only
+
 -- RLS on (service-role bypasses; these allow a signed-in user to read their own).
 alter table public.api_keys     enable row level security;
 alter table public.teams        enable row level security;

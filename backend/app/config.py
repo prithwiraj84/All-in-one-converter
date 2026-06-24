@@ -77,6 +77,47 @@ class Settings(BaseSettings):
     expiry_reminder_days: int = 3
     reminder_interval_hours: int = 12
 
+    # ── Infrastructure (all OPTIONAL — each feature stays off until configured,
+    # so the default behavior is unchanged). ──────────────────────────────────
+    # Observability
+    sentry_dsn: str | None = None
+    sentry_traces_sample_rate: float = 0.1
+    metrics_enabled: bool = True  # exposes Prometheus /metrics
+
+    # Object storage for outputs: "local" (disk, default) or "supabase".
+    storage_backend: str = "local"
+    storage_bucket: str = "user-files"
+    storage_signed_url_ttl: int = 86400  # signed-URL lifetime (s)
+
+    # Result cache / content-hash dedup: "off" (default), "redis" or "supabase".
+    cache_backend: str = "off"
+    cache_ttl_seconds: int = 86400
+    cache_cross_user: bool = False  # default per-user (privacy-safe)
+
+    # Upstash Redis (REST) — backs the job store + cache when set.
+    upstash_redis_rest_url: str | None = None
+    upstash_redis_rest_token: str | None = None
+
+    # Upstash QStash async queue. Heavy tools run async only when this is set.
+    qstash_token: str | None = None
+    qstash_current_signing_key: str | None = None
+    qstash_next_signing_key: str | None = None
+    # Public URL of THIS backend (where QStash delivers jobs); required for async.
+    backend_public_url: str | None = None
+    async_prefixes: str = "/api/video/,/api/ai/,/api/document/"
+
+    @property
+    def redis_enabled(self) -> bool:
+        return bool(self.upstash_redis_rest_url and self.upstash_redis_rest_token)
+
+    @property
+    def qstash_enabled(self) -> bool:
+        return bool(self.qstash_token and self.backend_public_url)
+
+    @property
+    def async_prefix_list(self) -> list[str]:
+        return [p.strip() for p in self.async_prefixes.split(",") if p.strip()]
+
     # Payments (Razorpay). Amounts are in the smallest currency unit (paise for
     # INR). A successful payment grants Pro for `pro_period_days`.
     razorpay_key_id: str | None = None

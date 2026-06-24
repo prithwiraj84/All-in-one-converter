@@ -14,12 +14,29 @@ import json
 from fastapi import APIRouter
 from starlette.responses import StreamingResponse
 
-from app.core import progress
+from app.core import jobs_store, progress
 
 router = APIRouter(prefix="/api/jobs", tags=["jobs"])
 
 _TICK = 0.5  # seconds between events
 _MAX_TICKS = 1800  # ~15 min ceiling so a stream can never leak forever
+
+
+@router.get("/{job_id}")
+async def job_status(job_id: str) -> dict:
+    """Poll an async (QStash) job. Returns {status, result?, error?}. `unknown`
+    if the queue is off or the id isn't a queued job (the client then relies on
+    the synchronous response it already has). The id is an unguessable random
+    token; only the status + result envelope are exposed (never the owner)."""
+    rec = await jobs_store.get(job_id)
+    if not rec:
+        return {"job_id": job_id, "status": "unknown"}
+    return {
+        "job_id": rec.get("job_id", job_id),
+        "status": rec.get("status", "unknown"),
+        "result": rec.get("result"),
+        "error": rec.get("error"),
+    }
 
 
 @router.get("/{job_id}/progress")
