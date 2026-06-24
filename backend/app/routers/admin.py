@@ -157,3 +157,11 @@ async def hf_logs(_: bool = Depends(require_admin), kind: str = "run") -> dict:
     from app.core import hf
 
     return await hf.space_logs(kind=kind)
+
+
+@router.get("/observability")
+async def observability(_: bool = Depends(require_admin)) -> dict:
+    """Sentry status + live request metrics for the Observability tab."""
+    from app.core import observability as obs
+
+    return await run_in_threadpool(obs.admin_snapshot)

@@ -10,6 +10,7 @@ import {
   ScrollText,
   Database,
   Triangle,
+  Activity,
   LayoutDashboard,
   RefreshCw,
   LogOut,
@@ -29,6 +30,7 @@ import {
   type AdminCreds,
   type AdminUser,
   type LogEntry,
+  type ObservabilityResp,
   type OverviewResp,
   type PlanName,
   type ToolUse,
@@ -548,12 +550,137 @@ function VercelSection({ creds }: { creds: AdminCreds }) {
   );
 }
 
+function ObservabilitySection({ creds }: { creds: AdminCreds }) {
+  const [data, setData] = React.useState<ObservabilityResp | null>(null);
+  const [err, setErr] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let alive = true;
+    adminFetch<ObservabilityResp>("/observability", creds)
+      .then((d) => alive && setData(d))
+      .catch((e) => alive && setErr((e as Error).message));
+    return () => {
+      alive = false;
+    };
+  }, [creds]);
+
+  if (err) return <p className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">{err}</p>;
+  if (!data)
+    return (
+      <div className="flex items-center justify-center gap-2 py-16 text-slate-500">
+        <Loader2 className="h-5 w-5 animate-spin" /> Loading…
+      </div>
+    );
+
+  const s = data.sentry;
+  const m = data.metrics;
+  const code = (k: string) => Number(m.by_status?.[k] ?? 0);
+  const errors = Object.entries(m.by_status ?? {})
+    .filter(([k]) => k.startsWith("4") || k.startsWith("5"))
+    .reduce((a, [, v]) => a + v, 0);
+
+  return (
+    <div className="space-y-5">
+      {/* Sentry */}
+      <Card title="Sentry — error tracking">
+        {!s.enabled ? (
+          <p className="text-sm text-slate-600">
+            Not configured. Set <code>SENTRY_DSN</code> in the backend env (and redeploy) to capture exceptions — it&apos;s
+            a no-op while blank. Frontend JS errors are still captured under the “Logs → frontend” tab.
+          </p>
+        ) : (
+          <div className="space-y-2.5 text-sm">
+            <div className="flex items-center gap-2">
+              <Dot on={s.active} />
+              <span className="font-medium text-slate-900">
+                {s.active ? "Active — capturing errors" : "DSN set, but the SDK isn’t active"}
+              </span>
+            </div>
+            <div className="grid grid-cols-1 gap-x-6 gap-y-1.5 sm:grid-cols-2">
+              <KV k="Environment" v={s.environment} />
+              <KV k="Traces sample rate" v={`${s.traces_sample_rate}`} />
+              <KV k="DSN" v={s.dsn_masked ?? "—"} />
+            </div>
+            <a
+              href="https://sentry.io"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+            >
+              Open Sentry dashboard ↗
+            </a>
+          </div>
+        )}
+      </Card>
+
+      {/* Prometheus request metrics */}
+      <Card title="Request metrics (Prometheus)">
+        {!m.enabled ? (
+          <p className="text-sm text-slate-600">{m.reason}</p>
+        ) : !m.available ? (
+          <p className="text-sm text-slate-600">
+            Metrics are on (scrape endpoint <code>/metrics</code>) but no requests have been recorded yet — make a few
+            conversions and refresh.
+          </p>
+        ) : (
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+              <Stat label="Total requests" value={fmtNum(m.total_requests ?? 0)} />
+              <Stat label="Error rate" value={`${m.error_rate ?? 0}%`} sub={`${fmtNum(errors)} 4xx/5xx`} />
+              <Stat label="Successful (2xx)" value={fmtNum(code("2xx"))} />
+              <Stat label="Server errors (5xx)" value={fmtNum(code("5xx"))} />
+            </div>
+            <div>
+              <p className="mb-2 text-xs font-medium text-slate-500">Top endpoints</p>
+              <div className="overflow-hidden rounded-xl border border-slate-200">
+                <table className="w-full text-sm">
+                  <thead className="bg-slate-50 text-left text-xs text-slate-500">
+                    <tr>
+                      <th className="px-3 py-2 font-medium">Endpoint</th>
+                      <th className="px-3 py-2 text-right font-medium">Requests</th>
+                      <th className="px-3 py-2 text-right font-medium">Avg latency</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(m.endpoints ?? []).map((e) => (
+                      <tr key={e.handler} className="border-t border-slate-100">
+                        <td className="px-3 py-2 font-mono text-xs text-slate-700">{e.handler}</td>
+                        <td className="px-3 py-2 text-right text-slate-900">{fmtNum(e.count)}</td>
+                        <td className="px-3 py-2 text-right text-slate-600">{e.avg_ms} ms</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+        <p className="mt-3 text-xs text-slate-400">
+          Raw Prometheus scrape: <code>{m.endpoint ?? "/metrics"}</code> — point Grafana here for dashboards.
+        </p>
+      </Card>
+    </div>
+  );
+}
+
+function KV({ k, v }: { k: string; v: string }) {
+  return (
+    <div className="flex items-center justify-between border-b border-slate-100 py-1.5">
+      <span className="text-slate-500">{k}</span>
+      <span className="max-w-[60%] truncate font-medium text-slate-900" title={v}>
+        {v}
+      </span>
+    </div>
+  );
+}
+
 /* ── shell ──────────────────────────────────────────────────── */
 const TABS = [
   { key: "overview", label: "Overview", icon: LayoutDashboard },
   { key: "users", label: "Users", icon: Users },
   { key: "tools", label: "Tools", icon: Wrench },
   { key: "system", label: "System", icon: Server },
+  { key: "observability", label: "Observability", icon: Activity },
   { key: "logs", label: "Logs", icon: ScrollText },
   { key: "supabase", label: "Supabase", icon: Database },
   { key: "vercel", label: "Vercel", icon: Triangle },
@@ -635,6 +762,7 @@ function Panel({ creds, onLogout }: { creds: AdminCreds; onLogout: () => void })
             {tab === "users" && <UsersTable users={users ?? []} creds={creds} onChanged={refresh} />}
             {tab === "tools" && <ToolsList tools={tools ?? []} />}
             {tab === "system" && <SystemSection data={overview} />}
+            {tab === "observability" && <ObservabilitySection creds={creds} />}
             {tab === "logs" && <LogsSection creds={creds} />}
             {tab === "supabase" && <SupabaseSection data={overview} />}
             {tab === "vercel" && <VercelSection creds={creds} />}

@@ -73,6 +73,26 @@ export interface LogEntry {
   message: string;
 }
 
+export interface ObservabilityResp {
+  sentry: {
+    enabled: boolean;
+    active: boolean;
+    dsn_masked: string | null;
+    environment: string;
+    traces_sample_rate: number;
+  };
+  metrics: {
+    enabled: boolean;
+    available?: boolean;
+    reason?: string;
+    endpoint?: string;
+    total_requests?: number;
+    by_status?: Record<string, number>;
+    error_rate?: number;
+    endpoints?: { handler: string; count: number; avg_ms: number }[];
+  };
+}
+
 export async function adminFetch<T>(
   path: string,
   creds: AdminCreds,
