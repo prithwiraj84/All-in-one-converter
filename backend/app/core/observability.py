@@ -58,12 +58,18 @@ def install_metrics(app) -> None:
     if not settings.metrics_enabled:
         return
     try:
-        from prometheus_fastapi_instrumentator import Instrumentator
+        from prometheus_fastapi_instrumentator import Instrumentator, metrics
 
-        Instrumentator(
+        instrumentator = Instrumentator(
             should_group_status_codes=True,
             excluded_handlers=["/metrics", "/api/health"],
-        ).instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
+        )
+        # default() = latency + size histograms (handler/method labels, no status).
+        # Add requests() so we also get http_requests_total{handler,method,status}
+        # — that's where the status-code breakdown / error rate comes from.
+        instrumentator.add(metrics.default())
+        instrumentator.add(metrics.requests())
+        instrumentator.instrument(app).expose(app, endpoint="/metrics", include_in_schema=False)
         logger.info("Prometheus /metrics enabled")
     except Exception:  # noqa: BLE001
         logger.warning("metrics init failed (prometheus instrumentator missing?)", exc_info=True)
@@ -115,44 +121,72 @@ def metrics_summary() -> dict:
 
     total = 0.0
     by_status: dict[str, float] = {}
-    ep_count: dict[str, float] = {}
-    ep_sum: dict[str, float] = {}
+    ep_count: dict[str, float] = {}      # request count per endpoint (incl. status)
+    ep_dur_sum: dict[str, float] = {}    # summed latency per endpoint (histogram)
+    ep_dur_count: dict[str, float] = {}  # latency observations per endpoint
     found = False
+    have_requests = False
+
+    def _family(code) -> str:
+        # Normalize to a status family so we're robust whether the instrumentator
+        # reports raw codes ("200") or grouped ones ("2xx").
+        c = str(code)
+        return (c[0] + "xx") if c[:1].isdigit() else c
+
     try:
         families = list(REGISTRY.collect())
-        # The per-endpoint request histogram carries handler/method/status labels;
-        # its _count samples are our request counters. Prefer the canonical name,
-        # but fall back to any duration histogram with a `handler` label so we're
-        # resilient to instrumentator version/naming differences. (The high-res
-        # histogram has no handler label, so it's correctly skipped.)
-        target = next((f for f in families if f.name == "http_request_duration_seconds"), None)
-        if target is None:
-            target = next(
+
+        # Status + per-endpoint counts come from the requests counter, which (unlike
+        # the default duration histogram) carries a `status` label. NOTE: a
+        # prometheus_client Counter's family name drops the `_total` suffix, so the
+        # family is "http_requests" while its value samples are "http_requests_total".
+        reqs = next((f for f in families if f.name == "http_requests"), None)
+        if reqs is not None:
+            have_requests = found = True
+            for s in reqs.samples:
+                if s.name != "http_requests_total":  # skip _created
+                    continue
+                handler = s.labels.get("handler", "?")
+                code = _family(s.labels.get("status") or s.labels.get("status_code") or "?")
+                total += s.value
+                by_status[code] = by_status.get(code, 0.0) + s.value
+                ep_count[handler] = ep_count.get(handler, 0.0) + s.value
+
+        # Latency from the per-endpoint duration histogram (handler label, no status).
+        dur = next((f for f in families if f.name == "http_request_duration_seconds"), None)
+        if dur is None:
+            dur = next(
                 (f for f in families
                  if f.name.endswith("request_duration_seconds")
                  and any("handler" in s.labels for s in f.samples)),
                 None,
             )
-        if target is not None:
+        if dur is not None:
             found = True
-            for sample in target.samples:
-                labels = sample.labels
-                handler = labels.get("handler", "?")
-                code = labels.get("status") or labels.get("status_code") or "?"
-                if sample.name.endswith("_count"):
-                    total += sample.value
-                    by_status[code] = by_status.get(code, 0.0) + sample.value
-                    ep_count[handler] = ep_count.get(handler, 0.0) + sample.value
-                elif sample.name.endswith("_sum"):
-                    ep_sum[handler] = ep_sum.get(handler, 0.0) + sample.value
+            for s in dur.samples:
+                handler = s.labels.get("handler", "?")
+                if s.name.endswith("_count"):
+                    ep_dur_count[handler] = ep_dur_count.get(handler, 0.0) + s.value
+                elif s.name.endswith("_sum"):
+                    ep_dur_sum[handler] = ep_dur_sum.get(handler, 0.0) + s.value
+
+        # Fallback: if the requests counter isn't present, derive totals + endpoint
+        # counts from the histogram (no status breakdown then, but counts still work).
+        if not have_requests and dur is not None:
+            for h, c in ep_dur_count.items():
+                ep_count[h] = ep_count.get(h, 0.0) + c
+                total += c
     except Exception:  # noqa: BLE001
         logger.warning("metrics summary parse failed", exc_info=True)
 
     top = sorted(ep_count.items(), key=lambda kv: kv[1], reverse=True)[:12]
-    endpoints = [
-        {"handler": h, "count": int(c), "avg_ms": round((ep_sum.get(h, 0.0) / c) * 1000, 1) if c else 0.0}
-        for h, c in top
-    ]
+    endpoints = []
+    for h, c in top:
+        dc = ep_dur_count.get(h, 0.0)
+        endpoints.append({
+            "handler": h, "count": int(c),
+            "avg_ms": round((ep_dur_sum.get(h, 0.0) / dc) * 1000, 1) if dc else 0.0,
+        })
     errors = sum(v for k, v in by_status.items() if k.startswith("4") or k.startswith("5"))
     return {
         "enabled": True,
