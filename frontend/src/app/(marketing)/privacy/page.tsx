@@ -60,6 +60,22 @@ export default function PrivacyPage() {
           <strong>We do not sell your files or use them to train AI models.</strong> Your documents remain yours.
         </li>
       </UL>
+      <P>In plain terms:</P>
+      <UL>
+        <li>Your files are automatically deleted from our servers shortly after your conversion is done.</li>
+        <li>We never keep your files longer than the retention window above.</li>
+        <li>After that window, your files are permanently removed — both the upload and the result.</li>
+        <li>No one on our team can view, access, or download your files.</li>
+        <li>Your files are processed automatically and are never seen by a person.</li>
+        <li>All uploads and downloads happen over a secure, encrypted connection (HTTPS).</li>
+        <li>We only collect the minimum data needed to keep the Service running.</li>
+        <li>You can try many tools without an account; a free sign-in is only needed to download your results.</li>
+        <li>
+          We never sell your files, and we only share them with the specific providers needed to run the tool you chose
+          (e.g. the AI providers in section 3) — never for advertising.
+        </li>
+        <li>Your files belong to you — we claim no rights over anything you convert.</li>
+      </UL>
 
       <H2>3. AI-powered tools</H2>
       <P>
@@ -78,7 +94,8 @@ export default function PrivacyPage() {
 
       <H2>5. Cookies &amp; advertising</H2>
       <P>
-        We use essential cookies for authentication. We may use analytics and, on the Free plan, third-party advertising
+        We use essential cookies for authentication. We do not track you across other websites ourselves. We may use
+        analytics and, on the Free plan, third-party advertising
         (such as Google AdSense). Advertising partners may use cookies to show relevant ads and measure performance. Paid
         (Pro/Business) users are not shown ads. Where required (e.g. in the EEA/UK), we ask for your consent before setting
         non-essential cookies, and you can withdraw it at any time through the cookie settings.
