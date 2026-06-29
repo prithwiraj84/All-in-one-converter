@@ -112,7 +112,7 @@ export function PricingSection() {
                     className="mt-8 w-full"
                   >
                     <a
-                      href={`mailto:prithwirajdas84@gmail.com?subject=${encodeURIComponent(
+                      href={`mailto:info@toshiconsulting.com?subject=${encodeURIComponent(
                         "Business plan enquiry — " + SITE.name,
                       )}&body=${encodeURIComponent(
                         "Hi,\n\nI'm interested in the Business plan. Here are a few details about my needs:\n\n- Team size:\n- Expected monthly volume:\n- Tools needed:\n\nThanks!",

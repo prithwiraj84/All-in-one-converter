@@ -4,13 +4,6 @@ import { SITE, SOCIAL, FOOTER_SECTIONS } from "@/lib/site-config";
 import { Logo } from "@/components/shared/logo";
 import { Container } from "@/components/shared/container";
 
-// Real, relevant, authoritative external links (the backend genuinely uses these).
-const POWERED_BY = [
-  { label: "FFmpeg", href: "https://ffmpeg.org" },
-  { label: "Tesseract", href: "https://github.com/tesseract-ocr/tesseract" },
-  { label: "LibreOffice", href: "https://www.libreoffice.org" },
-];
-
 export function Footer() {
   return (
     <footer className="border-t border-border bg-surface">
@@ -63,20 +56,15 @@ export function Footer() {
             © {new Date().getFullYear()} {SITE.name}. All rights reserved.
           </p>
           <p className="text-sm text-muted-foreground">
-            Powered by{" "}
-            {POWERED_BY.map((p, i) => (
-              <span key={p.label}>
-                <a
-                  href={p.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="font-medium text-foreground/80 underline-offset-2 hover:text-primary hover:underline"
-                >
-                  {p.label}
-                </a>
-                {i < POWERED_BY.length - 1 ? " · " : ""}
-              </span>
-            ))}
+            Product of{" "}
+            <a
+              href="https://toshiconsulting.com/"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-foreground/80 underline-offset-2 hover:text-primary hover:underline"
+            >
+              Toshi Consulting Services Pvt. Ltd
+            </a>
           </p>
         </div>
       </Container>

@@ -11,7 +11,7 @@ export const SITE = {
   twitter: "@aioconverter",
   // Public contact (used in the footer + legal pages + support links). Swap for
   // a domain alias (e.g. support@your-domain) whenever you have one set up.
-  email: "prithwirajdas84@gmail.com",
+  email: "info@toshiconsulting.com",
 } as const;
 
 /**
@@ -198,7 +198,7 @@ export const FOOTER_SECTIONS = [
       { label: "About", href: "/#how-it-works" },
       { label: "Privacy", href: "/privacy" },
       { label: "Terms", href: "/terms" },
-      { label: "Contact", href: "mailto:prithwirajdas84@gmail.com" },
+      { label: "Contact", href: "mailto:info@toshiconsulting.com" },
     ],
   },
 ] as const;

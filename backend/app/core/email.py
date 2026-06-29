@@ -22,7 +22,7 @@ from app.config import settings
 logger = logging.getLogger("aio.email")
 
 _FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif"
-SUPPORT_EMAIL = "prithwirajdas84@gmail.com"
+SUPPORT_EMAIL = "info@toshiconsulting.com"
 
 # Progressive-enhancement CSS (kept out of f-strings so literal braces are safe).
 _STYLE = """
