@@ -100,6 +100,8 @@ export interface Tool {
 export interface CategoryInfo {
   key: ToolCategory;
   label: string;
+  /** Plain-language name for chips and menus (e.g. "Image to Text" for OCR). */
+  short: string;
   description: string;
   icon: LucideIcon;
   /** Tailwind gradient classes for category accents. */
@@ -111,6 +113,7 @@ export const CATEGORIES: CategoryInfo[] = [
   {
     key: "pdf",
     label: "PDF Tools",
+    short: "PDF",
     description: "Merge, split, compress, protect and edit PDF documents.",
     icon: FileText,
     gradient: "from-blue-500 to-indigo-600",
@@ -119,6 +122,7 @@ export const CATEGORIES: CategoryInfo[] = [
   {
     key: "document",
     label: "Document Tools",
+    short: "Word & Office",
     description: "Convert between PDF, Word, Excel and PowerPoint.",
     icon: FileType2,
     gradient: "from-violet-500 to-purple-600",
@@ -127,6 +131,7 @@ export const CATEGORIES: CategoryInfo[] = [
   {
     key: "image",
     label: "Image Tools",
+    short: "Images",
     description: "Convert, resize and compress images in any format.",
     icon: ImageIcon,
     gradient: "from-cyan-500 to-sky-600",
@@ -135,6 +140,7 @@ export const CATEGORIES: CategoryInfo[] = [
   {
     key: "ocr",
     label: "OCR Tools",
+    short: "Image to Text",
     description: "Extract editable text from images and scanned PDFs.",
     icon: ScanText,
     gradient: "from-emerald-500 to-teal-600",
@@ -143,6 +149,7 @@ export const CATEGORIES: CategoryInfo[] = [
   {
     key: "archive",
     label: "Archive Tools",
+    short: "ZIP & Archive",
     description: "Extract and convert ZIP, TAR and other archives.",
     icon: FolderArchive,
     gradient: "from-amber-500 to-orange-600",
@@ -151,6 +158,7 @@ export const CATEGORIES: CategoryInfo[] = [
   {
     key: "audio",
     label: "Audio Tools",
+    short: "Audio",
     description: "Convert audio between MP3, WAV, FLAC and more.",
     icon: AudioLines,
     gradient: "from-pink-500 to-rose-600",
@@ -159,6 +167,7 @@ export const CATEGORIES: CategoryInfo[] = [
   {
     key: "video",
     label: "Video Tools",
+    short: "Video",
     description: "Convert and optimize video for any platform.",
     icon: Film,
     gradient: "from-red-500 to-orange-600",
@@ -167,6 +176,7 @@ export const CATEGORIES: CategoryInfo[] = [
   {
     key: "font",
     label: "Font Tools",
+    short: "Fonts",
     description: "Convert fonts between TTF, OTF, WOFF and WOFF2.",
     icon: Type,
     gradient: "from-slate-500 to-slate-700",
@@ -175,6 +185,7 @@ export const CATEGORIES: CategoryInfo[] = [
   {
     key: "ai",
     label: "AI Tools",
+    short: "AI Tools",
     description: "Summarize and understand documents with AI.",
     icon: Sparkles,
     gradient: "from-fuchsia-500 to-purple-600",
@@ -183,6 +194,7 @@ export const CATEGORIES: CategoryInfo[] = [
   {
     key: "generator",
     label: "Generator Tools",
+    short: "QR & Barcode",
     description: "Create QR codes and barcodes for links, Wi-Fi, payments, products and more.",
     icon: QrCode,
     gradient: "from-indigo-500 to-blue-600",

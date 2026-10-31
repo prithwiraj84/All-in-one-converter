@@ -87,14 +87,14 @@ function MetricCard({
   progress?: number;
 }) {
   return (
-    <Card className="group relative overflow-hidden p-5 transition-all duration-300 hover:-translate-y-1 hover:shadow-card-hover">
+    <Card className="group relative min-w-0 overflow-hidden p-4 transition-all duration-300 hover:-translate-y-1 hover:shadow-card-hover sm:p-5">
       <span className="pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full bg-brand-gradient opacity-0 blur-2xl transition-opacity duration-500 group-hover:opacity-20" />
-      <span className="grid h-11 w-11 place-items-center rounded-lg bg-brand-gradient bg-[length:200%_200%] text-white shadow-glow">
+      <span className="grid h-9 w-9 place-items-center rounded-lg bg-brand-gradient bg-[length:200%_200%] text-white shadow-glow sm:h-11 sm:w-11">
         <Icon className="h-5 w-5" strokeWidth={2.2} />
       </span>
       <div className="mt-4 space-y-1">
         <p className="text-sm font-medium text-muted-foreground">{label}</p>
-        <p className="font-display text-3xl font-bold tracking-tight">{value}</p>
+        <p className="truncate font-display text-2xl font-bold tracking-tight sm:text-3xl">{value}</p>
       </div>
       {typeof progress === "number" && <ProgressBar value={progress} className="mt-4" />}
       {caption && <p className="mt-2 text-xs text-muted-foreground">{caption}</p>}
@@ -267,7 +267,7 @@ export function DashboardOverview({ data }: { data: DashboardData }) {
         </div>
       </section>
 
-      <section className="mb-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <section className="mb-8 grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
         <MetricCard
           icon={Files}
           label="Stored files"
@@ -310,7 +310,7 @@ export function DashboardOverview({ data }: { data: DashboardData }) {
             <CardTitle>Recent Conversions</CardTitle>
             <Link
               href="/dashboard?tab=conversions"
-              className="inline-flex items-center gap-1 text-sm font-medium text-primary transition-colors hover:text-primary/80"
+              className="inline-flex min-h-10 items-center gap-1 text-sm font-medium text-primary transition-colors hover:text-primary/80"
             >
               View all <ArrowRight className="h-3.5 w-3.5" />
             </Link>
@@ -337,7 +337,7 @@ export function DashboardOverview({ data }: { data: DashboardData }) {
             <CardTitle>Recent Files</CardTitle>
             <Link
               href="/dashboard?tab=files"
-              className="inline-flex items-center gap-1 text-sm font-medium text-primary transition-colors hover:text-primary/80"
+              className="inline-flex min-h-10 items-center gap-1 text-sm font-medium text-primary transition-colors hover:text-primary/80"
             >
               View all <ArrowRight className="h-3.5 w-3.5" />
             </Link>

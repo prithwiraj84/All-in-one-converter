@@ -15,6 +15,7 @@ import {
   Lock,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { ToolSearch } from "@/components/tools/tool-search";
 import { FEATURED_TOOLS } from "@/lib/tools-registry";
 
 const floatingCards = [
@@ -59,7 +60,8 @@ export function Hero() {
   const bgY = useTransform(scrollYProgress, [0, 1], [0, 140]);
   const blobsY = useTransform(scrollYProgress, [0, 1], [0, -90]);
   const contentY = useTransform(scrollYProgress, [0, 1], [0, 70]);
-  const contentOpacity = useTransform(scrollYProgress, [0, 0.8], [1, 0]);
+  // Fade starts late so the search box (and its results) stays solid while in use.
+  const contentOpacity = useTransform(scrollYProgress, [0.55, 0.95], [1, 0]);
 
   return (
     <section ref={ref} className="relative overflow-hidden pt-20 pb-28 sm:pt-28 lg:pt-32">
@@ -198,20 +200,17 @@ export function Hero() {
         >
           <div className="absolute -inset-x-6 -bottom-6 top-2 -z-10 rounded-[2rem] bg-fun-gradient opacity-25 blur-2xl" />
 
+          {/* "What do you want to do?" — the quickest way in for first-time visitors. */}
           <div className="gradient-border p-1.5 shadow-card-hover">
-            <Link
-              href="/tools"
-              className="group flex flex-col items-center gap-3 rounded-[calc(var(--radius)-2px)] border-2 border-dashed border-border bg-white/85 px-6 py-11 backdrop-blur transition-colors hover:border-primary/50 hover:bg-primary/[0.03]"
-            >
-              <span className="grid h-16 w-16 place-items-center rounded-2xl bg-fun-gradient bg-[length:200%_200%] shadow-glow transition-transform duration-300 group-hover:scale-110 group-hover:rotate-6">
-                <UploadCloud className="h-7 w-7 text-white" />
-              </span>
-              <span className="text-base font-bold">Drop a file to get started</span>
-              <span className="text-sm text-muted-foreground">
-                or pick from <span className="font-semibold text-primary">100+ tools</span> — it&apos;s
-                completely free to try
-              </span>
-            </Link>
+            <div className="rounded-[calc(var(--radius)-2px)] bg-white/90 p-4 text-left backdrop-blur sm:p-6">
+              <p className="mb-3 flex items-center gap-2.5 text-base font-bold">
+                <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-fun-gradient bg-[length:200%_200%] shadow-glow">
+                  <UploadCloud className="h-4 w-4 text-white" />
+                </span>
+                What do you want to do?
+              </p>
+              <ToolSearch placeholder="e.g. compress PDF" showExamples limit={5} />
+            </div>
           </div>
 
           {/* Quick tool chips */}

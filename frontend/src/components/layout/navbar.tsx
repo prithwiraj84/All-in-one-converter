@@ -10,7 +10,10 @@ import { CATEGORIES, toolsByCategory } from "@/lib/tools-registry";
 import { useUser } from "@/hooks/use-user";
 import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/shared/logo";
+import { ToolSearch } from "@/components/tools/tool-search";
 import { UserMenu } from "./user-menu";
+
+const NAV_CATEGORIES = CATEGORIES.filter((c) => toolsByCategory(c.key).length > 0);
 
 export function Navbar() {
   const [scrolled, setScrolled] = useState(false);
@@ -48,9 +51,17 @@ export function Navbar() {
               className="relative"
               onMouseEnter={() => setToolsOpen(true)}
               onMouseLeave={() => setToolsOpen(false)}
+              onKeyDown={(e) => e.key === "Escape" && setToolsOpen(false)}
             >
-              <button className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
-                Tools <ChevronDown className="h-3.5 w-3.5" />
+              {/* Click toggles too, so touch laptops / tablets can open it. */}
+              <button
+                type="button"
+                onClick={() => setToolsOpen((v) => !v)}
+                aria-expanded={toolsOpen}
+                aria-haspopup="true"
+                className="flex items-center gap-1 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+              >
+                Tools <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", toolsOpen && "rotate-180")} />
               </button>
               <AnimatePresence>
                 {toolsOpen && (
@@ -62,13 +73,13 @@ export function Navbar() {
                     className="absolute left-0 top-full w-[640px] pt-3"
                   >
                     <div className="grid grid-cols-3 gap-1 rounded-2xl border border-border bg-popover p-3 shadow-card-hover">
-                      {CATEGORIES.slice(0, 6).map((cat) => {
+                      {NAV_CATEGORIES.map((cat) => {
                         const CatIcon = cat.icon;
-                        const first = toolsByCategory(cat.key)[0];
                         return (
                           <Link
                             key={cat.key}
-                            href={first ? `/${first.slug}` : "/tools"}
+                            href={`/tools#${cat.key}`}
+                            onClick={() => setToolsOpen(false)}
                             className="flex items-start gap-3 rounded-xl p-3 transition-colors hover:bg-muted"
                           >
                             <span
@@ -90,6 +101,7 @@ export function Navbar() {
                       })}
                       <Link
                         href="/tools"
+                        onClick={() => setToolsOpen(false)}
                         className="col-span-3 mt-1 flex items-center justify-center gap-1.5 rounded-xl bg-primary/5 py-2.5 text-sm font-medium text-primary hover:bg-primary/10"
                       >
                         View all tools <ArrowRight className="h-3.5 w-3.5" />
@@ -133,9 +145,11 @@ export function Navbar() {
         </div>
 
         <button
-          className="grid h-10 w-10 place-items-center rounded-lg text-foreground lg:hidden"
+          type="button"
+          className="grid h-11 w-11 place-items-center rounded-lg text-foreground lg:hidden"
           onClick={() => setMobileOpen((v) => !v)}
-          aria-label="Toggle menu"
+          aria-label={mobileOpen ? "Close menu" : "Open menu"}
+          aria-expanded={mobileOpen}
         >
           {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
         </button>
@@ -150,24 +164,51 @@ export function Navbar() {
             exit={{ opacity: 0, height: 0 }}
             className="overflow-hidden border-t border-border bg-white lg:hidden"
           >
-            <div className="space-y-1 px-5 py-4">
+            <div className="max-h-[calc(100dvh-4rem)] overflow-y-auto overscroll-contain px-5 py-4">
+              <p className="mb-2 text-sm font-semibold">What do you want to do?</p>
+              <ToolSearch placeholder="e.g. compress PDF" onNavigate={() => setMobileOpen(false)} />
+
+              <p className="mb-2 mt-5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                Browse tools
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {NAV_CATEGORIES.map((cat) => {
+                  const CatIcon = cat.icon;
+                  return (
+                    <Link
+                      key={cat.key}
+                      href={`/tools#${cat.key}`}
+                      onClick={() => setMobileOpen(false)}
+                      className="flex min-h-12 items-center gap-2.5 rounded-xl border border-border px-3 py-2 text-sm font-medium hover:bg-muted"
+                    >
+                      <span className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-gradient-to-br text-white", cat.gradient)}>
+                        <CatIcon className="h-3.5 w-3.5" />
+                      </span>
+                      <span className="leading-tight">{cat.short}</span>
+                    </Link>
+                  );
+                })}
+              </div>
               <Link
                 href="/tools"
                 onClick={() => setMobileOpen(false)}
-                className="block rounded-lg px-3 py-2.5 text-sm font-medium hover:bg-muted"
+                className="mt-2 flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-primary/5 text-sm font-semibold text-primary"
               >
-                All Tools
+                See all tools <ArrowRight className="h-4 w-4" />
               </Link>
-              {NAV_LINKS.filter((l) => l.label !== "Tools").map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  onClick={() => setMobileOpen(false)}
-                  className="block rounded-lg px-3 py-2.5 text-sm font-medium hover:bg-muted"
-                >
-                  {link.label}
-                </Link>
-              ))}
+
+              <div className="mt-4 border-t border-border pt-3">
+                {NAV_LINKS.filter((l) => l.label !== "Tools").map((link) => (
+                  <Link
+                    key={link.href}
+                    href={link.href}
+                    onClick={() => setMobileOpen(false)}
+                    className="flex min-h-11 items-center rounded-lg px-3 text-sm font-medium hover:bg-muted"
+                  >
+                    {link.label}
+                  </Link>
+                ))}
+              </div>
               <div className="flex flex-col gap-2 pt-3">
                 {!loading && user ? (
                   <Button asChild variant="gradient">

@@ -81,9 +81,9 @@ const FILE_HIGHLIGHTS = [
 ];
 
 const GENERATOR_HIGHLIGHTS = [
-  "100% free with no watermark",
-  "Created in your browser — nothing is uploaded",
-  "PNG, SVG & batch ZIP downloads",
+  "100% free, no watermark",
+  "Private — made in your browser",
+  "PNG, SVG & batch ZIP",
   "Works on any device",
 ];
 
@@ -147,65 +147,72 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
           <div className="absolute inset-0 bg-grid opacity-[0.4]" />
         </div>
 
-        <Container size="wide" className="py-12 lg:py-16">
+        <Container size="wide" className="py-6 sm:py-12 lg:py-16">
           {/* Breadcrumb */}
-          <nav className="mb-6 flex items-center gap-1.5 text-sm text-muted-foreground">
-            <Link href="/" className="hover:text-foreground">Home</Link>
-            <span>/</span>
-            <Link href="/tools" className="hover:text-foreground">Tools</Link>
-            <span>/</span>
-            <span className="text-foreground">{tool.title}</span>
+          <nav aria-label="Breadcrumb" className="mb-3 flex items-center gap-1.5 text-sm text-muted-foreground sm:mb-6">
+            <Link href="/" className="-mx-1 inline-flex min-h-9 items-center px-1 hover:text-foreground">Home</Link>
+            <span aria-hidden>/</span>
+            <Link href="/tools" className="-mx-1 inline-flex min-h-9 items-center px-1 hover:text-foreground">Tools</Link>
+            <span aria-hidden>/</span>
+            <span className="truncate text-foreground">{tool.title}</span>
           </nav>
 
           {generator ? (
             <>
               <Reveal className="mx-auto max-w-3xl text-center">
-                <Badge variant="outline" className="mb-4">
+                <Badge variant="outline" className="mb-3 sm:mb-4">
                   <span className={category.accent}>●</span> {category.label}
                 </Badge>
-                <h1 className="font-display text-4xl font-bold tracking-tight sm:text-5xl">
+                <h1 className="font-display text-3xl font-bold tracking-tight sm:text-5xl">
                   {tool.title}
                 </h1>
-                <p className="mt-4 text-lg text-muted-foreground">{tool.longDescription}</p>
-                <ul className="mt-6 flex flex-wrap justify-center gap-x-6 gap-y-2">
+                {/* Clamped on phones so the generator itself is close to the top. */}
+                <p className="mt-3 line-clamp-3 text-base text-muted-foreground sm:mt-4 sm:line-clamp-none sm:text-lg">
+                  {tool.longDescription}
+                </p>
+                <ul className="mt-4 grid grid-cols-2 gap-x-4 gap-y-2 text-left sm:mt-6 sm:flex sm:flex-wrap sm:justify-center sm:gap-x-6">
                   {highlights.map((point) => (
-                    <li key={point} className="flex items-center gap-2 text-sm">
-                      <CheckCircle2 className="h-4 w-4 text-success" />
+                    <li key={point} className="flex items-start gap-2 text-sm">
+                      <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-success" />
                       {point}
                     </li>
                   ))}
                 </ul>
               </Reveal>
-              <Reveal className="mt-10">{generator}</Reveal>
+              <Reveal className="mt-6 sm:mt-10">{generator}</Reveal>
             </>
           ) : (
-            <div className="grid items-start gap-10 lg:grid-cols-2">
-              <Reveal direction="right" className="lg:pt-6">
-                <Badge variant="outline" className="mb-4">
+            /* Phones: title → tool → details, so the tool is visible without scrolling.
+               Desktop: title + details on the left, tool on the right. */
+            <div className="grid items-start gap-6 lg:grid-cols-2 lg:grid-rows-[auto_1fr] lg:gap-x-10 lg:gap-y-0">
+              <Reveal direction="right" className="lg:col-start-1 lg:row-start-1 lg:pt-6">
+                <Badge variant="outline" className="mb-3 sm:mb-4">
                   <span className={category.accent}>●</span> {category.label}
                 </Badge>
-                <h1 className="font-display text-4xl font-bold tracking-tight sm:text-5xl">
+                <h1 className="font-display text-3xl font-bold tracking-tight sm:text-5xl">
                   {tool.title}
                 </h1>
-                <p className="mt-4 text-lg text-muted-foreground">{tool.longDescription}</p>
+                <p className="mt-3 text-base text-muted-foreground sm:mt-4 sm:text-lg">{tool.longDescription}</p>
+              </Reveal>
 
-                <ul className="mt-6 space-y-3">
+              <Reveal direction="left" className="min-w-0 lg:col-start-2 lg:row-span-2 lg:row-start-1">
+                <ToolWorkspace slug={tool.slug} />
+              </Reveal>
+
+              <Reveal direction="right" className="lg:col-start-1 lg:row-start-2">
+                <ul className="space-y-3 lg:mt-6">
                   {highlights.map((point) => (
                     <li key={point} className="flex items-center gap-2.5 text-sm">
-                      <CheckCircle2 className="h-4 w-4 text-success" />
+                      <CheckCircle2 className="h-4 w-4 shrink-0 text-success" />
                       {point}
                     </li>
                   ))}
                 </ul>
 
-                <div className="mt-8 flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-3 text-sm text-muted-foreground">
-                  <ShieldCheck className="h-4 w-4 text-primary" />
+                <div className="mt-6 flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-3 text-sm text-muted-foreground lg:mt-8">
+                  <ShieldCheck className="h-4 w-4 shrink-0 text-primary" />
                   Trusted by 50,000+ users · 1M+ files processed
                 </div>
-              </Reveal>
-
-              <Reveal direction="left">
-                <ToolWorkspace slug={tool.slug} />
               </Reveal>
             </div>
           )}
@@ -217,7 +224,7 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
         <Container size="wide">
           <Reveal className="mx-auto mb-10 max-w-xl text-center">
             <h2 className="font-display text-2xl font-bold sm:text-3xl">
-              {generator ? `How to use the ${tool.title}` : `How to ${tool.title.toLowerCase()}`}
+              How to use {generator ? `the ${tool.title}` : tool.title}
             </h2>
             <p className="mt-2 text-muted-foreground">Three simple steps. No software to install.</p>
           </Reveal>
@@ -267,7 +274,7 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
         <Container size="wide">
           <div className="mb-8 flex items-center justify-between">
             <h2 className="font-display text-2xl font-bold sm:text-3xl">Related tools</h2>
-            <Link href="/tools" className="inline-flex items-center gap-1 text-sm font-medium text-primary">
+            <Link href="/tools" className="inline-flex min-h-10 items-center gap-1 text-sm font-medium text-primary">
               All tools <ArrowRight className="h-4 w-4" />
             </Link>
           </div>

@@ -25,24 +25,46 @@ export function DownloadArea({ slug, children }: { slug: string; children: React
   return <>{children}</>;
 }
 
+/** Numbered step heading — guides first-time users through the generator. */
+export function Step({ n, title, hint }: { n: number; title: string; hint?: string }) {
+  return (
+    <div className="flex items-start gap-2.5">
+      <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-primary/10 text-xs font-bold text-primary">
+        {n}
+      </span>
+      <div>
+        <p className="text-sm font-semibold leading-6 text-foreground">{title}</p>
+        {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Generator layout. Phones: content → preview & download → design (so the
+ * result is visible right after typing). Desktop: content + design on the
+ * left, a sticky preview on the right.
+ */
 export function GeneratorShell({
   icon: Icon,
   title,
   description,
-  controls,
+  content,
+  design,
   preview,
 }: {
   icon: LucideIcon;
   title: string;
   description: string;
-  controls: ReactNode;
+  content: ReactNode;
+  design: ReactNode;
   preview: ReactNode;
 }) {
   return (
     // overflow-clip (not hidden) rounds the corners without breaking the sticky preview.
     <div className="overflow-clip rounded-2xl border border-border bg-card text-left shadow-card">
-      <div className="flex items-center gap-3 border-b border-border bg-surface/60 px-6 py-4">
-        <span className="grid h-10 w-10 place-items-center rounded-lg bg-brand-gradient text-white">
+      <div className="flex items-center gap-3 border-b border-border bg-surface/60 px-4 py-3.5 sm:px-6 sm:py-4">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-brand-gradient text-white">
           <Icon className="h-5 w-5" />
         </span>
         <div>
@@ -50,11 +72,14 @@ export function GeneratorShell({
           <p className="text-xs text-muted-foreground">{description}</p>
         </div>
       </div>
-      <div className="grid lg:grid-cols-[minmax(0,1fr)_380px]">
-        <div className="min-w-0 space-y-6 border-b border-border p-5 sm:p-6 lg:border-b-0 lg:border-r">{controls}</div>
-        <div className="p-5 sm:p-6">
+      <div className="grid lg:grid-cols-[minmax(0,1fr)_380px] lg:grid-rows-[auto_1fr]">
+        <div className="min-w-0 space-y-5 border-b border-border p-4 sm:p-6 lg:col-start-1 lg:row-start-1 lg:border-b-0 lg:border-r lg:pb-3">
+          {content}
+        </div>
+        <div className="border-b border-border bg-surface/30 p-4 sm:p-6 lg:col-start-2 lg:row-span-2 lg:row-start-1 lg:border-b-0 lg:bg-transparent">
           <div className="space-y-4 lg:sticky lg:top-24">{preview}</div>
         </div>
+        <div className="min-w-0 space-y-4 p-4 sm:p-6 lg:col-start-1 lg:row-start-2 lg:border-r lg:pt-3">{design}</div>
       </div>
     </div>
   );
@@ -64,7 +89,7 @@ export function GeneratorShell({
 export function OptionGroup({ value, title, children }: { value: string; title: string; children: ReactNode }) {
   return (
     <AccordionItem value={value} className="last:border-b-0">
-      <AccordionTrigger className="py-4 text-sm font-semibold">{title}</AccordionTrigger>
+      <AccordionTrigger className="min-h-12 py-3.5 text-sm font-semibold">{title}</AccordionTrigger>
       <AccordionContent className="space-y-4 text-foreground">{children}</AccordionContent>
     </AccordionItem>
   );
@@ -91,7 +116,7 @@ export function Segmented<T extends string>({
           aria-checked={value === v}
           onClick={() => onChange(v)}
           className={cn(
-            "inline-flex flex-1 items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
+            "inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors",
             value === v ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
           )}
         >
@@ -161,7 +186,7 @@ export function ColorField({
           value={HEX.test(value) ? value : "#000000"}
           onChange={(e) => onChange(e.target.value)}
           disabled={disabled}
-          className="h-7 w-9 shrink-0 cursor-pointer rounded border-0 bg-transparent p-0"
+          className="h-8 w-10 shrink-0 cursor-pointer rounded border-0 bg-transparent p-0"
         />
         <input
           id={id}
@@ -175,7 +200,7 @@ export function ColorField({
             if (HEX.test(next)) onChange(next.toLowerCase());
           }}
           onBlur={() => setDraft(value)}
-          className="w-full min-w-0 bg-transparent font-mono text-sm uppercase outline-none"
+          className="h-full w-full min-w-0 bg-transparent font-mono text-base uppercase outline-none sm:text-sm"
         />
       </div>
     </div>
@@ -218,7 +243,7 @@ export function RangeField({
         value={value}
         disabled={disabled}
         onChange={(e) => onChange(Number(e.target.value))}
-        className="w-full cursor-pointer accent-[hsl(var(--primary))]"
+        className="h-6 w-full cursor-pointer accent-[hsl(var(--primary))]"
       />
     </div>
   );

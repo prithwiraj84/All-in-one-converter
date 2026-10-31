@@ -1,10 +1,11 @@
 "use client";
 
 import { useCallback } from "react";
-import { useDropzone, type Accept } from "react-dropzone";
+import { useDropzone, type FileRejection } from "react-dropzone";
 import { motion, AnimatePresence, Reorder, useDragControls } from "framer-motion";
-import { UploadCloud, File as FileIcon, X, GripVertical } from "lucide-react";
+import { UploadCloud, File as FileIcon, X, GripVertical, FolderOpen } from "lucide-react";
 import { cn, formatBytes, fileExt } from "@/lib/utils";
+import { dropzoneAccept, formatLabels, joinFormats } from "@/lib/file-types";
 import { Button } from "@/components/ui/button";
 
 interface FileDropzoneProps {
@@ -16,9 +17,20 @@ interface FileDropzoneProps {
   disabled?: boolean;
 }
 
-function toAccept(mimes?: string[]): Accept | undefined {
-  if (!mimes || mimes.length === 0) return undefined;
-  return Object.fromEntries(mimes.map((m) => [m, [] as string[]]));
+/** Plain-language reason a file was refused (react-dropzone's own messages are technical). */
+function rejectionMessage(rejections: readonly FileRejection[], formats: string, maxSizeMb: number): string | null {
+  if (!rejections.length) return null;
+  const { file, errors } = rejections[0];
+  switch (errors[0]?.code) {
+    case "file-too-large":
+      return `“${file.name}” is ${formatBytes(file.size)} — files can be up to ${maxSizeMb} MB on your plan. Try a smaller file, or upgrade to Pro for files up to 1 GB.`;
+    case "file-invalid-type":
+      return `“${file.name}” isn't a ${formats} file. Please choose a ${formats} file for this tool.`;
+    case "too-many-files":
+      return "This tool works on one file at a time — please choose just one file.";
+    default:
+      return "That file couldn't be added. Please try another one.";
+  }
 }
 
 /** Stable key for a File across reorders (name/size/lastModified don't change). */
@@ -50,7 +62,7 @@ function FileRow({
       {draggable && (
         <span
           onPointerDown={(e) => controls.start(e)}
-          className="shrink-0 cursor-grab touch-none text-muted-foreground/70 transition-colors hover:text-foreground active:cursor-grabbing"
+          className="-m-2 shrink-0 cursor-grab touch-none p-2 text-muted-foreground/70 transition-colors hover:text-foreground active:cursor-grabbing"
           aria-label="Drag to reorder"
           role="button"
         >
@@ -70,7 +82,7 @@ function FileRow({
         type="button"
         variant="ghost"
         size="icon"
-        className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+        className="h-10 w-10 shrink-0 text-muted-foreground hover:text-destructive"
         onClick={(e) => {
           e.stopPropagation();
           onRemove();
@@ -99,13 +111,17 @@ export function FileDropzone({
     [files, multiple, onChange],
   );
 
+  const formats = joinFormats(formatLabels(accept));
   const { getRootProps, getInputProps, isDragActive, fileRejections } = useDropzone({
     onDrop,
-    accept: toAccept(accept),
+    accept: dropzoneAccept(accept),
     multiple,
     maxSize: maxSizeMb * 1024 * 1024,
     disabled,
   });
+  const rejection = rejectionMessage(fileRejections, formats || "supported", maxSizeMb);
+  const what = multiple ? "files" : "a file";
+  const hasFiles = files.length > 0;
 
   // Reordering only matters when the tool takes several files (e.g. Merge PDF).
   const reorderable = multiple && files.length > 1;
@@ -115,7 +131,8 @@ export function FileDropzone({
       <div
         {...getRootProps()}
         className={cn(
-          "group relative flex cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed px-6 py-12 text-center transition-all",
+          "group relative flex min-w-0 cursor-pointer flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed px-5 text-center transition-all sm:px-6",
+          hasFiles ? "py-6" : "py-9 sm:py-12",
           isDragActive
             ? "border-primary bg-primary/5 scale-[1.01]"
             : "border-border bg-surface hover:border-primary/50 hover:bg-primary/[0.03]",
@@ -123,31 +140,50 @@ export function FileDropzone({
         )}
       >
         <input {...getInputProps()} />
-        <motion.div
-          animate={{ y: isDragActive ? -6 : 0 }}
-          className="grid h-16 w-16 place-items-center rounded-2xl bg-brand-gradient bg-[length:200%_200%] shadow-glow"
-        >
-          <UploadCloud className="h-7 w-7 text-white" />
-        </motion.div>
-        <div>
+        {!hasFiles && (
+          <motion.div
+            animate={{ y: isDragActive ? -6 : 0 }}
+            className="grid h-14 w-14 place-items-center rounded-2xl bg-brand-gradient bg-[length:200%_200%] shadow-glow sm:h-16 sm:w-16"
+          >
+            <UploadCloud className="h-7 w-7 text-white" />
+          </motion.div>
+        )}
+        <div className="min-w-0">
           <p className="text-base font-semibold text-foreground">
-            {isDragActive ? "Drop your files here" : "Drag & drop files here"}
+            {isDragActive ? (
+              "Drop it here"
+            ) : hasFiles ? (
+              multiple ? "Add more files" : "Choose a different file"
+            ) : (
+              <>
+                {/* Touch screens can't drag & drop, so tell them to tap instead. */}
+                <span className="[@media(hover:none)]:hidden">Drag &amp; drop {what} here</span>
+                <span className="hidden [@media(hover:none)]:inline">Tap below to choose {what}</span>
+              </>
+            )}
           </p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            or <span className="font-medium text-primary">browse</span> — up to {maxSizeMb} MB
-            {multiple ? " each" : ""}
+          <p className="mt-1 break-words text-sm text-muted-foreground">
+            {formats && <span className="font-medium text-foreground/80">{formats}</span>}
+            {formats && " · "}up to {maxSizeMb} MB{multiple ? " each" : ""}
           </p>
         </div>
-        {accept && accept.length > 0 && (
-          <p className="text-xs text-muted-foreground/70">
-            Accepted: {accept.map((a) => a.split("/")[1]?.toUpperCase() || a).join(", ")}
-          </p>
-        )}
+        {/* A span (not a button): the whole box already opens the file picker. */}
+        <span
+          className={cn(
+            "inline-flex h-11 items-center gap-2 rounded-xl px-6 text-sm font-semibold transition-colors",
+            hasFiles
+              ? "border border-input bg-background text-foreground group-hover:bg-muted"
+              : "bg-primary text-primary-foreground shadow-sm group-hover:bg-primary/90",
+          )}
+        >
+          <FolderOpen className="h-4 w-4" />
+          {hasFiles ? (multiple ? "Add files" : "Replace file") : multiple ? "Choose files" : "Choose file"}
+        </span>
       </div>
 
-      {fileRejections.length > 0 && (
-        <p className="text-sm text-destructive">
-          {fileRejections[0].errors[0]?.message ?? "Some files were rejected."}
+      {rejection && (
+        <p role="alert" className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+          {rejection}
         </p>
       )}
 

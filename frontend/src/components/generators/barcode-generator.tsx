@@ -31,6 +31,7 @@ import {
   RangeField,
   Segmented,
   SelectField,
+  Step,
   ToggleField,
 } from "./generator-ui";
 
@@ -290,19 +291,24 @@ export function BarcodeGenerator({ slug }: { slug: string }) {
   const oneD = fmt ? !fmt.twoD : true;
   const warnings = barcodeWarnings(state);
 
-  const controls = (
+  const content = (
     <>
       <Segmented
         className="w-full"
         value={state.mode}
         onChange={(mode) => set({ mode })}
         options={[
-          { value: "single", label: "Single barcode", icon: Barcode },
-          { value: "batch", label: "Batch (many)", icon: Layers },
+          { value: "single", label: "One barcode", icon: Barcode },
+          { value: "batch", label: "Many at once", icon: Layers },
         ]}
       />
 
       <section className="space-y-4">
+        <Step
+          n={1}
+          title={state.mode === "single" ? "Pick a barcode type and enter the value" : "Pick a barcode type and paste your values"}
+          hint="Not sure which type? Code 128 works for most labels; EAN-13 is for retail products."
+        />
         <div className="space-y-1.5">
           <Label htmlFor="bc-format">Barcode type</Label>
           <Select id="bc-format" value={state.bcid} onChange={(e) => selectFormat(e.target.value)}>
@@ -353,7 +359,7 @@ export function BarcodeGenerator({ slug }: { slug: string }) {
               value={state.batch}
               onChange={(e) => set({ batch: e.target.value })}
               placeholder={fmt ? `${fmt.sample}\n…` : ""}
-              className="min-h-[180px] font-mono text-xs"
+              className="min-h-[180px] font-mono text-base sm:text-xs"
               spellCheck={false}
             />
             <p className="text-xs text-muted-foreground">
@@ -364,14 +370,19 @@ export function BarcodeGenerator({ slug }: { slug: string }) {
           </div>
         )}
       </section>
+    </>
+  );
 
-      <Accordion type="multiple" defaultValue={["size"]} className="rounded-xl border border-border px-4">
+  const designControls = (
+    <>
+      <Step n={3} title="Customize the look (optional)" hint="Size, text and colors — the defaults print and scan well." />
+      <Accordion type="multiple" className="rounded-xl border border-border px-4">
         <OptionGroup value="size" title="Size & text">
-          <RangeField id="bc-scale" label="Bar width (pixels per module)" min={1} max={8} value={state.scale} onChange={(scale) => set({ scale })} />
+          <RangeField id="bc-scale" label="Bar thickness" min={1} max={8} value={state.scale} onChange={(scale) => set({ scale })} />
           {oneD ? (
             <>
               <RangeField id="bc-height" label="Bar height" min={5} max={60} value={state.height} format={(v) => `${v} mm`} onChange={(height) => set({ height })} />
-              <ToggleField label="Show human-readable text" checked={state.includetext} onChange={(includetext) => set({ includetext })} />
+              <ToggleField label="Show the number / text under the barcode" checked={state.includetext} onChange={(includetext) => set({ includetext })} />
               {state.includetext && (
                 <>
                   <RangeField id="bc-textsize" label="Text size" min={6} max={24} value={state.textsize} format={(v) => `${v} pt`} onChange={(textsize) => set({ textsize })} />
@@ -445,7 +456,7 @@ export function BarcodeGenerator({ slug }: { slug: string }) {
               { label: "90° counter-clockwise", value: "L" },
             ]}
           />
-          <RangeField id="bc-padding" label="Quiet zone (padding)" min={0} max={40} value={state.padding} onChange={(padding) => set({ padding })} />
+          <RangeField id="bc-padding" label="White space around the barcode" min={0} max={40} value={state.padding} onChange={(padding) => set({ padding })} />
           <button
             type="button"
             onClick={() => setState((s) => ({ ...INITIAL, mode: s.mode, bcid: s.bcid, text: s.text, batch: s.batch }))}
@@ -460,6 +471,7 @@ export function BarcodeGenerator({ slug }: { slug: string }) {
 
   const preview = (
     <>
+      <Step n={2} title="Preview & download" hint="Updates as you type." />
       <PreviewStage transparent={state.transparent}>
         <canvas ref={canvasRef} className={cn("h-auto max-h-[360px] max-w-full", !canExport && "hidden")} />
         {!canExport && (
@@ -560,7 +572,8 @@ export function BarcodeGenerator({ slug }: { slug: string }) {
       icon={Barcode}
       title="Barcode Generator"
       description="Choose a barcode type, enter the value, customize — then download."
-      controls={controls}
+      content={content}
+      design={designControls}
       preview={preview}
     />
   );

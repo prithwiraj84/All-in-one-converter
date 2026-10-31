@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
+  Check,
   CheckCircle2,
   Copy,
   Download,
@@ -25,7 +26,7 @@ import {
   getPendingDownload,
   type PendingDownload,
 } from "@/lib/pending-download";
-import { formatBytes } from "@/lib/utils";
+import { cn, formatBytes } from "@/lib/utils";
 import { formatRetention } from "@/lib/plans";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -35,6 +36,23 @@ import { FileDropzone } from "./file-dropzone";
 import { DownloadGate } from "./download-gate";
 import { AdUnit } from "@/components/ads/ad-unit";
 import { ToolOptionsForm, defaultOptionValues, type OptionValues } from "./tool-options-form";
+
+/** Numbered step heading ("① Add your file") — ticks green once done. */
+function StepLabel({ n, done, children }: { n: number; done?: boolean; children: React.ReactNode }) {
+  return (
+    <p className="flex items-center gap-2 text-sm font-semibold text-foreground">
+      <span
+        className={cn(
+          "grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-bold",
+          done ? "bg-success text-white" : "bg-primary/10 text-primary",
+        )}
+      >
+        {done ? <Check className="h-3.5 w-3.5" /> : n}
+      </span>
+      {children}
+    </p>
+  );
+}
 
 export function ToolWorkspace({ slug }: { slug: string }) {
   const tool = getTool(slug);
@@ -78,6 +96,7 @@ export function ToolWorkspace({ slug }: { slug: string }) {
   const busy = state.stage === "uploading" || state.stage === "processing";
   const Icon = tool.icon;
   const clientTool = isClientTool(tool.slug);
+  const hasVisibleOptions = (tool.options ?? []).some((o) => !(o.type === "select" && o.hidden));
 
   const mergedOptions = useMemo(() => {
     // Inject hidden defaults (e.g. fixed output format for jpg-to-png).
@@ -387,6 +406,9 @@ export function ToolWorkspace({ slug }: { slug: string }) {
               exit={{ opacity: 0 }}
               className="space-y-5"
             >
+              <StepLabel n={1} done={files.length > 0}>
+                Add your {tool.multiple ? "files" : "file"}
+              </StepLabel>
               <FileDropzone
                 files={files}
                 onChange={setFiles}
@@ -395,17 +417,23 @@ export function ToolWorkspace({ slug }: { slug: string }) {
                 maxSizeMb={maxMb}
               />
 
-              {tool.options && files.length > 0 && (
-                <ToolOptionsForm options={tool.options} values={options} onChange={setOptions} />
+              {hasVisibleOptions && files.length > 0 && (
+                <>
+                  <StepLabel n={2}>Choose options</StepLabel>
+                  <ToolOptionsForm options={tool.options!} values={options} onChange={setOptions} />
+                </>
               )}
 
               {state.stage === "error" && state.error && (
-                <div className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
+                <div role="alert" className="flex items-start gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
                   <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
                   <span>{state.error}</span>
                 </div>
               )}
 
+              {files.length > 0 && (
+                <StepLabel n={hasVisibleOptions ? 3 : 2}>Click to {tool.actionLabel.toLowerCase()}</StepLabel>
+              )}
               <Button
                 variant="gradient"
                 size="xl"
@@ -417,8 +445,9 @@ export function ToolWorkspace({ slug }: { slug: string }) {
                 {tool.actionLabel}
               </Button>
               <p className="text-center text-xs text-muted-foreground">
-                Files are encrypted in transit and deleted automatically within{" "}
-                {formatRetention(limits.retentionMinutes)}.
+                {files.length === 0
+                  ? `Add ${tool.multiple ? "your files" : "a file"} above to get started — it's free.`
+                  : `Files are encrypted in transit and deleted automatically within ${formatRetention(limits.retentionMinutes)}.`}
               </p>
             </motion.div>
           )}

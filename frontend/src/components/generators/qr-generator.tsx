@@ -27,6 +27,7 @@ import {
   RangeField,
   Segmented,
   SelectField,
+  Step,
   ToggleField,
 } from "./generator-ui";
 
@@ -286,20 +287,21 @@ export function QrGenerator({ slug }: { slug: string }) {
   const canExport = Boolean(data) && !renderError;
   const warnings = qrWarnings(design);
 
-  const controls = (
+  const content = (
     <>
       <Segmented
         className="w-full"
         value={state.mode}
         onChange={(mode) => setState((s) => ({ ...s, mode }))}
         options={[
-          { value: "single", label: "Single code", icon: QrCode },
-          { value: "batch", label: "Batch (many)", icon: Layers },
+          { value: "single", label: "One QR code", icon: QrCode },
+          { value: "batch", label: "Many at once", icon: Layers },
         ]}
       />
 
       {state.mode === "single" ? (
         <section className="space-y-4">
+          <Step n={1} title="Choose what the QR code should open" hint="Pick a type, then fill in the details." />
           <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
             {QR_TYPES.map(({ key, label, icon: Icon }) => (
               <button
@@ -332,13 +334,14 @@ export function QrGenerator({ slug }: { slug: string }) {
         </section>
       ) : (
         <section className="space-y-2">
-          <Label htmlFor="qr-batch">Items — one per line</Label>
+          <Step n={1} title="Paste your items" hint="One link or text per line — each line becomes its own QR code." />
+          <Label htmlFor="qr-batch" className="sr-only">Items — one per line</Label>
           <Textarea
             id="qr-batch"
             value={state.batch}
             onChange={(e) => setState((s) => ({ ...s, batch: e.target.value }))}
             placeholder={"https://example.com/product/1\nhttps://example.com/product/2\nTICKET-0003"}
-            className="min-h-[180px] font-mono text-xs"
+            className="min-h-[180px] font-mono text-base sm:text-xs"
           />
           <p className="text-xs text-muted-foreground">
             {batchLines.length} item{batchLines.length === 1 ? "" : "s"} · each line becomes its own QR code (up to{" "}
@@ -349,8 +352,13 @@ export function QrGenerator({ slug }: { slug: string }) {
           )}
         </section>
       )}
+    </>
+  );
 
-      <Accordion type="multiple" defaultValue={["style"]} className="rounded-xl border border-border px-4">
+  const designControls = (
+    <>
+      <Step n={3} title="Customize the look (optional)" hint="Colors, shapes and your logo — the default design scans great too." />
+      <Accordion type="multiple" className="rounded-xl border border-border px-4">
         <OptionGroup value="style" title="Style & colors">
           <div className="flex flex-wrap gap-2">
             {QR_PRESETS.map((p) => (
@@ -358,7 +366,7 @@ export function QrGenerator({ slug }: { slug: string }) {
                 key={p.name}
                 type="button"
                 onClick={() => setDesign(p.design)}
-                className="rounded-full border border-border bg-card px-3 py-1 text-xs font-medium transition-colors hover:border-primary/50 hover:text-primary"
+                className="min-h-9 rounded-full border border-border bg-card px-3.5 text-sm font-medium transition-colors hover:border-primary/50 hover:text-primary"
               >
                 {p.name}
               </button>
@@ -396,13 +404,13 @@ export function QrGenerator({ slug }: { slug: string }) {
             </div>
           )}
           <ToggleField
-            label="Custom eye color"
-            hint="Color the three corner squares separately."
+            label="Different color for the corner squares"
+            hint="Color the three big corner squares separately."
             checked={design.customEyes}
             onChange={(customEyes) => setDesign({ customEyes })}
           />
           {design.customEyes && (
-            <ColorField id="qr-eye" label="Eye color" value={design.eyeColor} onChange={(eyeColor) => setDesign({ eyeColor })} />
+            <ColorField id="qr-eye" label="Corner square color" value={design.eyeColor} onChange={(eyeColor) => setDesign({ eyeColor })} />
           )}
         </OptionGroup>
 
@@ -462,9 +470,10 @@ export function QrGenerator({ slug }: { slug: string }) {
         </OptionGroup>
 
         <OptionGroup value="advanced" title="Advanced">
-          <SelectField id="qr-ecl" label="Error correction" value={design.ecl} options={ECL_OPTIONS} onChange={(v) => setDesign({ ecl: v as QrDesign["ecl"] })} />
-          <RangeField id="qr-quiet" label="Margin (quiet zone)" min={0} max={15} value={design.quietZone} format={(v) => `${v}%`} onChange={(quietZone) => setDesign({ quietZone })} />
-          <RangeField id="qr-round" label="Background corner radius" min={0} max={50} value={design.bgRound} format={(v) => `${v}%`} onChange={(bgRound) => setDesign({ bgRound })} />
+          <SelectField id="qr-ecl" label="Damage tolerance (error correction)" value={design.ecl} options={ECL_OPTIONS} onChange={(v) => setDesign({ ecl: v as QrDesign["ecl"] })} />
+          <p className="-mt-2 text-xs text-muted-foreground">Higher keeps the code scannable even if part of it is covered or scratched.</p>
+          <RangeField id="qr-quiet" label="White border around the code" min={0} max={15} value={design.quietZone} format={(v) => `${v}%`} onChange={(quietZone) => setDesign({ quietZone })} />
+          <RangeField id="qr-round" label="Rounded background corners" min={0} max={50} value={design.bgRound} format={(v) => `${v}%`} onChange={(bgRound) => setDesign({ bgRound })} />
           <button
             type="button"
             onClick={() => setState((s) => ({ ...s, design: { ...DEFAULT_QR_DESIGN, size: s.design.size } }))}
@@ -485,6 +494,7 @@ export function QrGenerator({ slug }: { slug: string }) {
 
   const preview = (
     <>
+      <Step n={2} title="Preview & download" hint="Updates as you type." />
       <PreviewStage transparent={design.transparent}>
         <div ref={previewRef} className={cn("w-full max-w-[300px] [&>svg]:h-auto [&>svg]:w-full", !canExport && "hidden")} />
         {!canExport && (
@@ -565,7 +575,8 @@ export function QrGenerator({ slug }: { slug: string }) {
       icon={QrCode}
       title="QR Code Generator"
       description="Pick a type, add your content, style it — then download."
-      controls={controls}
+      content={content}
+      design={designControls}
       preview={preview}
     />
   );

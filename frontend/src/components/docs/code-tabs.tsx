@@ -38,7 +38,7 @@ export function CodeTabs({ samples }: { samples: CodeSample }) {
               key={l.key}
               onClick={() => setActive(l.key)}
               className={cn(
-                "px-3 py-2 text-xs font-medium transition-colors",
+                "min-h-10 px-3 py-2 text-xs font-medium transition-colors",
                 active === l.key
                   ? "border-b-2 border-primary text-white"
                   : "text-slate-400 hover:text-slate-200",
@@ -50,7 +50,7 @@ export function CodeTabs({ samples }: { samples: CodeSample }) {
         </div>
         <button
           onClick={copy}
-          className="mr-1 inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-slate-400 hover:text-white"
+          className="mr-1 inline-flex min-h-9 items-center gap-1 rounded px-2.5 py-1 text-xs text-slate-400 hover:text-white"
         >
           {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
           {copied ? "Copied" : "Copy"}
@@ -78,7 +78,7 @@ export function CodeBlock({ code, lang }: { code: string; lang?: string }) {
       )}
       <button
         onClick={copy}
-        className="absolute right-2 top-2 inline-flex items-center gap-1 rounded px-2 py-1 text-xs text-slate-400 opacity-0 transition-opacity hover:text-white group-hover:opacity-100"
+        className="absolute right-1.5 top-1.5 inline-flex min-h-9 items-center gap-1 rounded px-2.5 py-1 text-xs text-slate-400 opacity-0 transition-opacity hover:text-white group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100"
       >
         {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
       </button>
