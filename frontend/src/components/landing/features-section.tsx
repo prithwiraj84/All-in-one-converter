@@ -49,7 +49,7 @@ export function FeaturesSection() {
             return (
               <motion.div key={category.key} variants={revealItem}>
                 <Link
-                  href="/tools"
+                  href={`/tools#${category.key}`}
                   className="group relative flex h-full flex-col gap-4 overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-card transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-card-hover"
                 >
                   {/* hover glow accent */}
