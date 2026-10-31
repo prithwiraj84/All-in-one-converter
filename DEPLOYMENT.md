@@ -101,6 +101,25 @@ frontend goes on **Vercel**. Your single GitHub repo stays the source of truth.
 
 > **HF free tier notes:** 16 GB RAM (handles LibreOffice/video), **sleeps after ~48 h idle** (cold start on next request), and storage is **ephemeral** (fine — files auto-delete after 60 min). Keep secrets in HF **Secrets**; never commit `.env`.
 
+### 3.4 Payments (Razorpay)
+1. **Schema:** re-run [`supabase/schema.sql`](./supabase/schema.sql) (safe to re-run) — it adds the
+   `payments` ledger and stops users from editing their own `plan` column.
+2. **Keys:** Razorpay Dashboard → *Account & Settings → API Keys*. Add `RAZORPAY_KEY_ID` (variable)
+   and `RAZORPAY_KEY_SECRET` (secret) to the HF Space. Use `rzp_test_…` keys to try it end-to-end,
+   then switch to `rzp_live_…` keys (requires an activated Razorpay account) to take real payments.
+3. **Webhook:** Dashboard → *Webhooks → Add new webhook*:
+   - URL: `https://<user>-<space>.hf.space/api/payments/webhook`
+   - Events: `payment.authorized`, `payment.captured`, `order.paid`
+   - Secret: a strong random value — add the same value as the `RAZORPAY_WEBHOOK_SECRET` secret.
+4. **Prices** (optional): `RAZORPAY_PRO_AMOUNT` / `RAZORPAY_BUSINESS_AMOUNT` in paise (defaults ₹99 / ₹499)
+   and `PRO_PERIOD_DAYS` / `BUSINESS_PERIOD_DAYS` (default 30). Keep them in sync with the pricing
+   copy in `frontend/src/lib/site-config.ts`.
+
+Checkout confirms every payment against Razorpay's API (the plan comes from the order, not the
+browser), captures authorized payments, and records each payment once — so the checkout callback
+and the webhook never grant twice. `GET /api/payments/config` shows `"enabled": true` once the
+keys are set.
+
 ---
 
 ## 4. Alternative: Render (backend)

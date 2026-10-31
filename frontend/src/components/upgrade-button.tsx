@@ -1,33 +1,21 @@
 "use client";
 
-import { Mail } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { Button, type ButtonProps } from "@/components/ui/button";
+import { useUpgrade } from "@/hooks/use-upgrade";
 
 interface UpgradeButtonProps extends Omit<ButtonProps, "onClick" | "asChild"> {
-  /** Plan the CTA refers to (used in the contact email subject). */
+  /** Plan to buy or renew through Razorpay checkout. */
   plan?: string;
 }
 
-// Online payments are paused for now, so every upgrade/renew CTA opens an email
-// to us instead of Razorpay checkout. The caller's label (e.g. "Upgrade now",
-// "Renew Pro") is intentionally overridden to "Contact us".
-// To restore checkout: bring back useUpgrade() — onClick={() => upgrade(plan)},
-// the loading spinner, and render {children} again.
-const CONTACT_EMAIL = "info@toshiconsulting.com";
-
-export function UpgradeButton({ plan = "pro", ...props }: UpgradeButtonProps) {
-  const subject = encodeURIComponent(
-    `Upgrade to ${plan === "business" ? "Business" : "Pro"} — All in one converter`,
-  );
+/** Opens Razorpay checkout for `plan` (signed-out users are sent to login first). */
+export function UpgradeButton({ plan = "pro", children, disabled, ...props }: UpgradeButtonProps) {
+  const { upgrade, loading } = useUpgrade();
   return (
-    <Button
-      type="button"
-      onClick={() => {
-        window.location.href = `mailto:${CONTACT_EMAIL}?subject=${subject}`;
-      }}
-      {...props}
-    >
-      <Mail className="h-4 w-4" /> Contact us
+    <Button type="button" onClick={() => upgrade(plan)} disabled={disabled || loading} {...props}>
+      {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+      {children}
     </Button>
   );
 }

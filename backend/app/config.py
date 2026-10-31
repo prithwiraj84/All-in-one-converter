@@ -119,7 +119,8 @@ class Settings(BaseSettings):
         return [p.strip() for p in self.async_prefixes.split(",") if p.strip()]
 
     # Payments (Razorpay). Amounts are in the smallest currency unit (paise for
-    # INR). A successful payment grants Pro for `pro_period_days`.
+    # INR). A successful payment grants the plan for its period (renewing early
+    # stacks onto the remaining days).
     razorpay_key_id: str | None = None
     razorpay_key_secret: str | None = None
     razorpay_webhook_secret: str | None = None
@@ -127,7 +128,10 @@ class Settings(BaseSettings):
     razorpay_pro_amount: int = 9900       # ₹99
     razorpay_business_amount: int = 49900  # ₹499
     pro_period_days: int = 30
-    business_period_days: int = 365  # Business is sold via Contact Sales → annual
+    business_period_days: int = 30  # ₹499/month, as shown on the pricing page
+    # Local testing only: lets signed-in users self-grant a plan while Razorpay
+    # keys are unset. Never enable on a public deployment.
+    payments_dev_mode: bool = False
 
     @property
     def razorpay_enabled(self) -> bool:

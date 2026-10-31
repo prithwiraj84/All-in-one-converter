@@ -11,7 +11,7 @@ export const SITE = {
   twitter: "@aioconverter",
   // Public contact (used in the footer + legal pages + support links). Swap for
   // a domain alias (e.g. support@your-domain) whenever you have one set up.
-  email: "info@toshiconsulting.com",
+  email: "prithwirajdas84@gmail.com",
 } as const;
 
 /**
@@ -119,7 +119,7 @@ export const PRICING_TIERS: PricingTier[] = [
     price: 499,
     period: "month",
     description: "For teams that need scale, an API and shared access.",
-    cta: "Contact Sales",
+    cta: "Upgrade to Business",
     features: [
       "Everything in Pro",
       "20 GB total storage",
@@ -198,7 +198,7 @@ export const FOOTER_SECTIONS = [
       { label: "About", href: "/#how-it-works" },
       { label: "Privacy", href: "/privacy" },
       { label: "Terms", href: "/terms" },
-      { label: "Contact", href: "mailto:info@toshiconsulting.com" },
+      { label: "Contact", href: "mailto:prithwirajdas84@gmail.com" },
     ],
   },
 ] as const;

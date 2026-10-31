@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { useUser } from "./use-user";
 import { createClient } from "@/lib/supabase/client";
+import { SITE } from "@/lib/site-config";
 import {
   createOrder,
   devUpgrade,
@@ -71,14 +72,19 @@ export function useUpgrade() {
           return;
         }
 
-        // Dev/testing mode (no Razorpay keys) → grant the plan instantly, no payment.
         const config = await getPaymentConfig();
         if (!config.enabled) {
-          await devUpgrade(plan, token);
-          toast.success(`${planName} unlocked (test mode) — no payment needed 🎉`);
-          router.refresh();
-          window.setTimeout(() => window.location.reload(), 1000);
-          return;
+          // Local testing only: the backend must explicitly opt in (PAYMENTS_DEV_MODE).
+          if (config.dev_mode) {
+            await devUpgrade(plan, token);
+            toast.success(`${planName} unlocked (test mode) — no payment needed 🎉`);
+            router.refresh();
+            window.setTimeout(() => window.location.reload(), 1000);
+            return;
+          }
+          throw new Error(
+            `Payments aren't available right now. Please try again shortly or email ${SITE.email}.`,
+          );
         }
 
         const order = await createOrder(plan, token);
@@ -106,7 +112,7 @@ export function useUpgrade() {
             } catch (err) {
               toast.error(
                 (err as Error).message ||
-                  "We couldn't confirm the payment. If you were charged, contact support — it'll be applied shortly.",
+                  `We couldn't confirm the payment. If you were charged it'll be applied shortly — or email ${SITE.email}.`,
               );
             }
           },

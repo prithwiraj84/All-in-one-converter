@@ -373,6 +373,53 @@ async def record_conversion(
 
 
 # ════════════════════════════════════════════════════════════════════════════
+# Payments ledger (Razorpay)
+# ════════════════════════════════════════════════════════════════════════════
+async def record_payment(p: dict) -> bool | None:
+    """Add a captured payment to the ledger (keyed by the Razorpay payment id).
+    True = newly recorded, False = already fulfilled (duplicate id), None = the
+    ledger is unavailable (e.g. the `payments` table hasn't been migrated) — the
+    caller then grants idempotently instead of stacking."""
+    if not is_configured():
+        return None
+    row = {
+        "id": p["payment_id"],
+        "order_id": p["order_id"],
+        "user_id": p["user_id"],
+        "plan": p["plan"],
+        "amount": p["amount"],
+        "currency": p["currency"],
+    }
+    headers = {**_rest_headers(), "Content-Type": "application/json", "Prefer": "return=minimal"}
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            resp = await client.post(f"{settings.supabase_url}/rest/v1/payments", headers=headers, json=row)
+        if resp.status_code == 409:
+            return False
+        if resp.status_code < 300:
+            return True
+        logger.error("payments ledger insert failed: %s %s", resp.status_code, resp.text[:200])
+    except Exception:
+        logger.error("payments ledger insert failed", exc_info=True)
+    return None
+
+
+async def delete_payment(payment_id: str) -> None:
+    """Drop a ledger row so a retry can fulfil the payment (used when the grant fails)."""
+    if not is_configured():
+        return
+    try:
+        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+            await client.delete(
+                f"{settings.supabase_url}/rest/v1/payments",
+                params={"id": f"eq.{payment_id}"},
+                headers=_rest_headers(),
+            )
+    except Exception:  # noqa: BLE001
+        logger.warning("delete_payment failed", exc_info=True)
+
+
+# ════════════════════════════════════════════════════════════════════════════
 # REST API keys (Business plan)
 # ════════════════════════════════════════════════════════════════════════════
 API_KEY_PREFIX = "aio_live_"

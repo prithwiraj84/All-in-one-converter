@@ -87,6 +87,21 @@ create table if not exists public.subscriptions (
 );
 create unique index if not exists subscriptions_user_id_idx on public.subscriptions (user_id);
 
+-- ── payments ───────────────────────────────────────────────────────────────
+-- Ledger of captured Razorpay payments, written by the backend (service role).
+-- The primary key on the payment id makes fulfilment idempotent: the checkout
+-- callback and the webhook never grant the same payment twice.
+create table if not exists public.payments (
+  id          text primary key,              -- Razorpay payment id (pay_…)
+  order_id    text not null,
+  user_id     uuid not null references auth.users (id) on delete cascade,
+  plan        subscription_plan not null,
+  amount      integer not null,              -- smallest currency unit (paise)
+  currency    text not null,
+  created_at  timestamptz not null default now()
+);
+create index if not exists payments_user_id_idx on public.payments (user_id, created_at desc);
+
 -- ── updated_at trigger for profiles ────────────────────────────────────────
 create or replace function public.set_updated_at()
 returns trigger language plpgsql as $$
@@ -138,6 +153,11 @@ create policy "profiles_select_own" on public.profiles
 drop policy if exists "profiles_update_own" on public.profiles;
 create policy "profiles_update_own" on public.profiles
   for update using (auth.uid() = id);
+-- Users may edit only their display fields. plan / pro_until and the reminder /
+-- welcome timestamps are written by the backend (service role) only — otherwise
+-- anyone could grant themselves a paid plan from the browser.
+revoke update on public.profiles from anon, authenticated;
+grant update (name, avatar_url) on public.profiles to authenticated;
 
 -- files
 drop policy if exists "files_select_own" on public.files;
@@ -160,6 +180,11 @@ create policy "conversions_update_own" on public.conversions for update using (a
 -- subscriptions (read-only to the user; writes happen via service role)
 drop policy if exists "subscriptions_select_own" on public.subscriptions;
 create policy "subscriptions_select_own" on public.subscriptions for select using (auth.uid() = user_id);
+
+-- payments (read-only to the user; writes happen via service role)
+alter table public.payments enable row level security;
+drop policy if exists "payments_select_own" on public.payments;
+create policy "payments_select_own" on public.payments for select using (auth.uid() = user_id);
 
 -- ════════════════════════════════════════════════════════════════════════════
 -- Business plan features: REST API keys + Team workspaces & roles

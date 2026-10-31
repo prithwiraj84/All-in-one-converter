@@ -26,11 +26,13 @@ async function detail(res: Response, fallback: string): Promise<string> {
 
 export interface PaymentConfig {
   enabled: boolean;
+  /** Backend opted into free test upgrades (PAYMENTS_DEV_MODE, no Razorpay keys). */
+  dev_mode?: boolean;
   currency?: string;
   period_days?: number;
 }
 
-/** Is the payment gateway configured? (False → dev/testing mode.) */
+/** Is Razorpay checkout configured on the backend? */
 export async function getPaymentConfig(): Promise<PaymentConfig> {
   try {
     const res = await fetch(`${API_BASE}/api/payments/config`);
@@ -41,7 +43,7 @@ export async function getPaymentConfig(): Promise<PaymentConfig> {
   }
 }
 
-/** Dev-only: grant the plan without payment (works only when keys aren't set). */
+/** Dev-only: grant the plan without payment (only when the backend reports dev_mode). */
 export async function devUpgrade(plan: string, token: string): Promise<void> {
   const res = await fetch(`${API_BASE}/api/payments/dev-upgrade`, {
     method: "POST",

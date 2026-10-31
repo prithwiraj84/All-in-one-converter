@@ -55,17 +55,6 @@ export function Footer() {
           <p className="text-sm text-muted-foreground">
             © {new Date().getFullYear()} {SITE.name}. All rights reserved.
           </p>
-          <p className="text-sm text-muted-foreground">
-            Product of{" "}
-            <a
-              href="https://toshiconsulting.com/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="font-medium text-foreground/80 underline-offset-2 hover:text-primary hover:underline"
-            >
-              Toshi Consulting Services Pvt. Ltd
-            </a>
-          </p>
         </div>
       </Container>
     </footer>
