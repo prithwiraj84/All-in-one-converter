@@ -85,7 +85,8 @@ export type ToolCategory =
   | "audio"
   | "video"
   | "font"
-  | "ai";
+  | "ai"
+  | "generator";
 
 export interface PricingTier {
   name: string;

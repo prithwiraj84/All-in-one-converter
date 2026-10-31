@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowRight, CheckCircle2, ShieldCheck, Sparkles, Upload, Cpu, Download } from "lucide-react";
+import { ArrowRight, CheckCircle2, ShieldCheck, Upload, Cpu, Download, PenLine, Palette } from "lucide-react";
 import {
   ALL_TOOL_SLUGS,
   getTool,
@@ -10,11 +10,12 @@ import {
   FEATURED_TOOLS,
 } from "@/lib/tools-registry";
 import { FAQS, SITE } from "@/lib/site-config";
-import { absoluteUrl } from "@/lib/utils";
+import { absoluteUrl, cn } from "@/lib/utils";
 import { Container } from "@/components/shared/container";
 import { Reveal } from "@/components/shared/reveal";
 import { Badge } from "@/components/ui/badge";
 import { ToolWorkspace } from "@/components/tools/tool-workspace";
+import { GeneratorWorkspace } from "@/components/generators/generator-workspace";
 import { ToolCard } from "@/components/tools/tool-card";
 import { AdUnit } from "@/components/ads/ad-unit";
 import {
@@ -66,6 +67,26 @@ const STEPS = [
   { icon: Download, title: "Download the result", text: "Grab your file instantly. We delete it automatically afterwards." },
 ];
 
+const GENERATOR_STEPS = [
+  { icon: PenLine, title: "Add your content", text: "Pick a type and fill in the details — the preview updates as you type." },
+  { icon: Palette, title: "Customize the design", text: "Set colors, size, style and text until it looks exactly right." },
+  { icon: Download, title: "Download", text: "Save print-ready PNG or SVG files, or a whole batch as a ZIP." },
+];
+
+const FILE_HIGHLIGHTS = [
+  "100% free with no watermark",
+  "Secure, encrypted processing",
+  "Files auto-deleted after 60 minutes",
+  "Works on any device",
+];
+
+const GENERATOR_HIGHLIGHTS = [
+  "100% free with no watermark",
+  "Created in your browser — nothing is uploaded",
+  "PNG, SVG & batch ZIP downloads",
+  "Works on any device",
+];
+
 export default async function ToolPage({ params }: { params: Promise<{ slug: string }> }) {
   const { slug } = await params;
   const tool = getTool(slug);
@@ -77,17 +98,27 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
     .concat(FEATURED_TOOLS.filter((t) => t.category !== tool.category))
     .slice(0, 4);
 
+  const generator = tool.workspace ? <GeneratorWorkspace kind={tool.workspace} slug={tool.slug} /> : null;
+  const steps = generator ? GENERATOR_STEPS : STEPS;
+  const highlights = generator ? GENERATOR_HIGHLIGHTS : FILE_HIGHLIGHTS;
+
   const toolFaqs = [
     ...(tool.faqs ?? []),
     {
       question: `Is ${tool.title} free to use?`,
       answer: `Yes — ${tool.title} is completely free with generous daily limits. No signup or watermark required.`,
     },
-    {
-      question: "Are my files safe?",
-      answer:
-        "Absolutely. Files are transferred over encrypted TLS connections and deleted automatically within 60 minutes. We never share or sell your data.",
-    },
+    generator
+      ? {
+          question: "Is my data private?",
+          answer:
+            "Yes. Everything is generated right in your browser — nothing you type or upload is sent to our servers.",
+        }
+      : {
+          question: "Are my files safe?",
+          answer:
+            "Absolutely. Files are transferred over encrypted TLS connections and deleted automatically within 60 minutes. We never share or sell your data.",
+        },
     ...FAQS.slice(0, 2),
   ];
 
@@ -109,8 +140,8 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
         ]}
       />
 
-      {/* Hero + workspace */}
-      <section className="relative overflow-hidden">
+      {/* Hero + workspace. Generators use overflow-x-clip so their sticky preview works. */}
+      <section className={cn("relative", generator ? "overflow-x-clip" : "overflow-hidden")}>
         <div className="pointer-events-none absolute inset-0 -z-10">
           <div className="absolute left-1/2 top-0 h-[480px] w-[820px] -translate-x-1/2 rounded-full bg-brand-gradient opacity-[0.08] blur-3xl" />
           <div className="absolute inset-0 bg-grid opacity-[0.4]" />
@@ -126,40 +157,58 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
             <span className="text-foreground">{tool.title}</span>
           </nav>
 
-          <div className="grid items-start gap-10 lg:grid-cols-2">
-            <Reveal direction="right" className="lg:pt-6">
-              <Badge variant="outline" className="mb-4">
-                <span className={category.accent}>●</span> {category.label}
-              </Badge>
-              <h1 className="font-display text-4xl font-bold tracking-tight sm:text-5xl">
-                {tool.title}
-              </h1>
-              <p className="mt-4 text-lg text-muted-foreground">{tool.longDescription}</p>
+          {generator ? (
+            <>
+              <Reveal className="mx-auto max-w-3xl text-center">
+                <Badge variant="outline" className="mb-4">
+                  <span className={category.accent}>●</span> {category.label}
+                </Badge>
+                <h1 className="font-display text-4xl font-bold tracking-tight sm:text-5xl">
+                  {tool.title}
+                </h1>
+                <p className="mt-4 text-lg text-muted-foreground">{tool.longDescription}</p>
+                <ul className="mt-6 flex flex-wrap justify-center gap-x-6 gap-y-2">
+                  {highlights.map((point) => (
+                    <li key={point} className="flex items-center gap-2 text-sm">
+                      <CheckCircle2 className="h-4 w-4 text-success" />
+                      {point}
+                    </li>
+                  ))}
+                </ul>
+              </Reveal>
+              <Reveal className="mt-10">{generator}</Reveal>
+            </>
+          ) : (
+            <div className="grid items-start gap-10 lg:grid-cols-2">
+              <Reveal direction="right" className="lg:pt-6">
+                <Badge variant="outline" className="mb-4">
+                  <span className={category.accent}>●</span> {category.label}
+                </Badge>
+                <h1 className="font-display text-4xl font-bold tracking-tight sm:text-5xl">
+                  {tool.title}
+                </h1>
+                <p className="mt-4 text-lg text-muted-foreground">{tool.longDescription}</p>
 
-              <ul className="mt-6 space-y-3">
-                {[
-                  "100% free with no watermark",
-                  "Secure, encrypted processing",
-                  "Files auto-deleted after 60 minutes",
-                  "Works on any device",
-                ].map((point) => (
-                  <li key={point} className="flex items-center gap-2.5 text-sm">
-                    <CheckCircle2 className="h-4 w-4 text-success" />
-                    {point}
-                  </li>
-                ))}
-              </ul>
+                <ul className="mt-6 space-y-3">
+                  {highlights.map((point) => (
+                    <li key={point} className="flex items-center gap-2.5 text-sm">
+                      <CheckCircle2 className="h-4 w-4 text-success" />
+                      {point}
+                    </li>
+                  ))}
+                </ul>
 
-              <div className="mt-8 flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-3 text-sm text-muted-foreground">
-                <ShieldCheck className="h-4 w-4 text-primary" />
-                Trusted by 50,000+ users · 1M+ files processed
-              </div>
-            </Reveal>
+                <div className="mt-8 flex items-center gap-2 rounded-xl border border-border bg-surface px-4 py-3 text-sm text-muted-foreground">
+                  <ShieldCheck className="h-4 w-4 text-primary" />
+                  Trusted by 50,000+ users · 1M+ files processed
+                </div>
+              </Reveal>
 
-            <Reveal direction="left">
-              <ToolWorkspace slug={tool.slug} />
-            </Reveal>
-          </div>
+              <Reveal direction="left">
+                <ToolWorkspace slug={tool.slug} />
+              </Reveal>
+            </div>
+          )}
         </Container>
       </section>
 
@@ -168,12 +217,12 @@ export default async function ToolPage({ params }: { params: Promise<{ slug: str
         <Container size="wide">
           <Reveal className="mx-auto mb-10 max-w-xl text-center">
             <h2 className="font-display text-2xl font-bold sm:text-3xl">
-              How to {tool.title.toLowerCase()}
+              {generator ? `How to use the ${tool.title}` : `How to ${tool.title.toLowerCase()}`}
             </h2>
             <p className="mt-2 text-muted-foreground">Three simple steps. No software to install.</p>
           </Reveal>
           <div className="grid gap-6 md:grid-cols-3">
-            {STEPS.map((step, i) => (
+            {steps.map((step, i) => (
               <Reveal key={step.title} delay={i * 0.1}>
                 <div className="relative rounded-2xl border border-border bg-card p-6 shadow-card">
                   <span className="absolute right-5 top-5 font-display text-4xl font-bold text-muted/60">

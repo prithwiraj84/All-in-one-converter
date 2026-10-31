@@ -32,6 +32,8 @@ import {
   Headphones,
   Mic,
   Languages,
+  QrCode,
+  Barcode,
   type LucideIcon,
 } from "lucide-react";
 import type { ToolCategory } from "./types";
@@ -86,6 +88,9 @@ export interface Tool {
   /** Whether the result is inline text (OCR) vs a downloadable file. */
   resultType: "file" | "text";
   options?: ToolOption[];
+  /** In-browser generator workspace instead of the upload flow (the upload
+   *  fields above are then unused). */
+  workspace?: "qr" | "barcode";
   featured?: boolean;
   popular?: boolean;
   seo: { title: string; description: string; keywords: string[] };
@@ -174,6 +179,14 @@ export const CATEGORIES: CategoryInfo[] = [
     icon: Sparkles,
     gradient: "from-fuchsia-500 to-purple-600",
     accent: "text-fuchsia-600",
+  },
+  {
+    key: "generator",
+    label: "Generator Tools",
+    description: "Create QR codes and barcodes for links, Wi-Fi, payments, products and more.",
+    icon: QrCode,
+    gradient: "from-indigo-500 to-blue-600",
+    accent: "text-indigo-600",
   },
 ];
 
@@ -1366,6 +1379,113 @@ export const TOOLS: Tool[] = [
         "translate document online",
       ],
     },
+  },
+
+  /* ── Generators (run entirely in the browser) ───────────── */
+  {
+    slug: "qr-code-generator",
+    title: "QR Code Generator",
+    category: "generator",
+    description: "Create custom QR codes for links, Wi-Fi, UPI payments, contacts and more.",
+    longDescription:
+      "Make QR codes for websites, Wi-Fi networks, UPI payments, WhatsApp chats, contact cards, events, locations and more. Style them with colors, gradients, rounded dots and your own logo, then download sharp PNG, SVG, JPG or WebP files — or create hundreds at once in batch mode. Everything is generated right in your browser.",
+    icon: QrCode,
+    accept: [],
+    multiple: false,
+    endpoint: "",
+    actionLabel: "Generate",
+    resultType: "file",
+    workspace: "qr",
+    featured: true,
+    popular: true,
+    seo: {
+      title: "QR Code Generator — Free Custom QR Codes with Logo",
+      description:
+        "Create free custom QR codes for URLs, Wi-Fi, UPI, WhatsApp, vCards and events. Add your logo, colors and gradients. Download PNG or SVG, or batch-generate as ZIP.",
+      keywords: [
+        "qr code generator",
+        "free qr code generator",
+        "qr code with logo",
+        "wifi qr code",
+        "upi qr code generator",
+        "vcard qr code",
+        "custom qr code",
+      ],
+    },
+    faqs: [
+      {
+        question: "Do these QR codes expire?",
+        answer:
+          "No. They're static QR codes — the content is stored in the code itself, so they work forever and never depend on our servers.",
+      },
+      {
+        question: "Can I add my logo to the QR code?",
+        answer:
+          "Yes. Upload a logo in the Logo section. We automatically switch to the highest error correction level (H) so the code still scans with the logo in the middle.",
+      },
+      {
+        question: "Which file format should I download?",
+        answer:
+          "SVG for print and design tools — it scales to any size without blurring. PNG for websites, documents and social media.",
+      },
+      {
+        question: "Can I create many QR codes at once?",
+        answer:
+          "Yes. Switch to Batch mode, paste one item per line (up to 500) and download them all as a ZIP, with a CSV index of every file.",
+      },
+    ],
+  },
+  {
+    slug: "barcode-generator",
+    title: "Barcode Generator",
+    category: "generator",
+    description: "Generate EAN, UPC, Code 128, GS1, Data Matrix and 100+ other barcodes.",
+    longDescription:
+      "Create retail, shipping and industrial barcodes — EAN-13, UPC-A, ISBN, Code 128, Code 39, ITF-14, GS1-128, Data Matrix, PDF417 and over 100 more. Check digits are added automatically, and you can set bar size, text, colors and rotation before downloading print-ready PNG, SVG or JPG files, or a whole batch as a ZIP.",
+    icon: Barcode,
+    accept: [],
+    multiple: false,
+    endpoint: "",
+    actionLabel: "Generate",
+    resultType: "file",
+    workspace: "barcode",
+    featured: true,
+    seo: {
+      title: "Barcode Generator — Free EAN, UPC, Code 128 & GS1 Barcodes",
+      description:
+        "Generate free barcodes online: EAN-13, UPC-A, ISBN, Code 128, ITF-14, GS1-128, Data Matrix, PDF417 and 100+ more. Print-ready PNG and SVG, batch ZIP export.",
+      keywords: [
+        "barcode generator",
+        "ean 13 barcode generator",
+        "upc barcode generator",
+        "code 128 generator",
+        "gs1 barcode",
+        "data matrix generator",
+        "free barcode maker",
+      ],
+    },
+    faqs: [
+      {
+        question: "Do I need to enter the check digit?",
+        answer:
+          "No. For EAN, UPC and ITF-14 just enter the number without its last digit and the check digit is calculated for you. If you enter the full number, we verify the check digit.",
+      },
+      {
+        question: "Can I use these barcodes on products I sell?",
+        answer:
+          "Yes, the barcode images are free to use. For retail products you'll need a registered GS1 company prefix so your EAN/UPC numbers are unique.",
+      },
+      {
+        question: "Which barcode type should I choose?",
+        answer:
+          "EAN-13 or UPC-A for retail products, ISBN for books, Code 128 for general labels and inventory, ITF-14 for shipping cartons, and Data Matrix or PDF417 when you need to store more data in a small space.",
+      },
+      {
+        question: "Can I generate many barcodes at once?",
+        answer:
+          "Yes. Switch to Batch mode, paste one value per line (up to 500) and download them all as a ZIP. Invalid values are skipped and listed in the included CSV.",
+      },
+    ],
   },
 
   /* ── More format conversions (reuse the generic /convert endpoints) ── */
